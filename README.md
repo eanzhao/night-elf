@@ -108,16 +108,26 @@ Common commands:
 ```bash
 dotnet restore NightElf.slnx
 dotnet test NightElf.slnx
+./eng/test-phase1-baseline.sh
 ```
 
 Current bootstrap projects:
 
 - `src/NightElf.Core`
 - `src/NightElf.Database`
+- `src/NightElf.Database.Redis`
+- `src/NightElf.Database.Hosting`
 - `src/NightElf.Database.Tsavorite`
 - `src/NightElf.Kernel.Core`
 - `test/NightElf.Architecture.Tests`
+- `test/NightElf.Database.Hosting.Tests`
 - `test/NightElf.Database.Tsavorite.Tests`
+- `test/NightElf.Phase1.Baseline.Tests`
+
+Phase 1 compatibility baseline:
+
+- `docs/002-phase1-test-baseline.md`
+- `.github/workflows/phase1-baseline.yml`
 
 ## Roadmap
 

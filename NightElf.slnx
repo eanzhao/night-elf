@@ -11,5 +11,6 @@
     <Project Path="test/NightElf.Architecture.Tests/NightElf.Architecture.Tests.csproj" />
     <Project Path="test/NightElf.Database.Hosting.Tests/NightElf.Database.Hosting.Tests.csproj" />
     <Project Path="test/NightElf.Database.Tsavorite.Tests/NightElf.Database.Tsavorite.Tests.csproj" />
+    <Project Path="test/NightElf.Phase1.Baseline.Tests/NightElf.Phase1.Baseline.Tests.csproj" />
   </Folder>
 </Solution>
