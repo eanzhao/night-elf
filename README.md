@@ -129,6 +129,7 @@ Current bootstrap projects:
 - `test/NightElf.Architecture.Tests`
 - `test/NightElf.Database.Hosting.Tests`
 - `test/NightElf.Database.Tsavorite.Tests`
+- `test/NightElf.Kernel.Parallel.Tests`
 - `test/NightElf.Kernel.SmartContract.Tests`
 - `test/NightElf.Phase1.Baseline.Tests`
 - `test/NightElf.Sdk.SourceGen.Tests`
@@ -154,6 +155,10 @@ Phase 3 contract dispatch baseline:
 Phase 3 resource extraction baseline:
 
 - `docs/006-resource-declaration-source-generator.md`
+
+Phase 3 conflict retry baseline:
+
+- `docs/007-conflict-retry-strategy.md`
 
 ## Roadmap
 

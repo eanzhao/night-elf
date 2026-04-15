@@ -129,6 +129,7 @@ dotnet test NightElf.slnx
 - `test/NightElf.Architecture.Tests`
 - `test/NightElf.Database.Hosting.Tests`
 - `test/NightElf.Database.Tsavorite.Tests`
+- `test/NightElf.Kernel.Parallel.Tests`
 - `test/NightElf.Kernel.SmartContract.Tests`
 - `test/NightElf.Phase1.Baseline.Tests`
 - `test/NightElf.Sdk.SourceGen.Tests`
@@ -154,6 +155,10 @@ Phase 3 合约调度基线：
 Phase 3 资源声明基线：
 
 - `docs/006-resource-declaration-source-generator.md`
+
+Phase 3 冲突重试基线：
+
+- `docs/007-conflict-retry-strategy.md`
 
 ## 实施路线
 
