@@ -131,6 +131,10 @@ Phase 1 compatibility baseline:
 - `docs/002-phase1-test-baseline.md`
 - `.github/workflows/phase1-baseline.yml`
 
+Phase 2 async audit baseline:
+
+- `docs/003-runsync-audit.md`
+
 ## Roadmap
 
 | Phase | Scope | Duration |

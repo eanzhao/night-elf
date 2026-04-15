@@ -131,6 +131,10 @@ Phase 1 兼容性测试基线：
 - `docs/002-phase1-test-baseline.md`
 - `.github/workflows/phase1-baseline.yml`
 
+Phase 2 async 审计基线：
+
+- `docs/003-runsync-audit.md`
+
 ## 实施路线
 
 | 阶段 | 范围 | 周期 |
