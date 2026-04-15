@@ -1,10 +1,12 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/NightElf.Core/NightElf.Core.csproj" />
+    <Project Path="src/NightElf.Database.Tsavorite/NightElf.Database.Tsavorite.csproj" />
     <Project Path="src/NightElf.Database/NightElf.Database.csproj" />
     <Project Path="src/NightElf.Kernel.Core/NightElf.Kernel.Core.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/NightElf.Architecture.Tests/NightElf.Architecture.Tests.csproj" />
+    <Project Path="test/NightElf.Database.Tsavorite.Tests/NightElf.Database.Tsavorite.Tests.csproj" />
   </Folder>
 </Solution>

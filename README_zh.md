@@ -114,8 +114,10 @@ dotnet test NightElf.slnx
 
 - `src/NightElf.Core`
 - `src/NightElf.Database`
+- `src/NightElf.Database.Tsavorite`
 - `src/NightElf.Kernel.Core`
 - `test/NightElf.Architecture.Tests`
+- `test/NightElf.Database.Tsavorite.Tests`
 
 ## 实施路线
 
