@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.13.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
@@ -17,13 +18,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\NightElf.Core\NightElf.Core.csproj" />
-    <ProjectReference Include="..\..\src\NightElf.Database\NightElf.Database.csproj" />
-    <ProjectReference Include="..\..\src\NightElf.Database.Hosting\NightElf.Database.Hosting.csproj" />
-    <ProjectReference Include="..\..\src\NightElf.Database.Redis\NightElf.Database.Redis.csproj" />
-    <ProjectReference Include="..\..\src\NightElf.Database.Tsavorite\NightElf.Database.Tsavorite.csproj" />
-    <ProjectReference Include="..\..\src\NightElf.Kernel.Core\NightElf.Kernel.Core.csproj" />
-    <ProjectReference Include="..\..\src\NightElf.Kernel.Parallel\NightElf.Kernel.Parallel.csproj" />
     <ProjectReference Include="..\..\src\NightElf.Kernel.SmartContract\NightElf.Kernel.SmartContract.csproj" />
     <ProjectReference Include="..\..\src\NightElf.Runtime.CSharp\NightElf.Runtime.CSharp.csproj" />
     <ProjectReference Include="..\..\src\NightElf.Sdk.CSharp\NightElf.Sdk.CSharp.csproj" />

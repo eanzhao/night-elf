@@ -124,6 +124,7 @@ Current bootstrap projects:
 - `src/NightElf.Kernel.Core`
 - `src/NightElf.Kernel.Parallel`
 - `src/NightElf.Kernel.SmartContract`
+- `src/NightElf.Runtime.CSharp`
 - `src/NightElf.Sdk.CSharp`
 - `src/NightElf.Sdk.SourceGen`
 - `test/NightElf.Architecture.Tests`
@@ -132,6 +133,7 @@ Current bootstrap projects:
 - `test/NightElf.Kernel.Parallel.Tests`
 - `test/NightElf.Kernel.SmartContract.Tests`
 - `test/NightElf.Phase1.Baseline.Tests`
+- `test/NightElf.Runtime.CSharp.Tests`
 - `test/NightElf.Sdk.CSharp.Tests`
 - `test/NightElf.Sdk.SourceGen.Tests`
 
@@ -164,6 +166,10 @@ Phase 3 conflict retry baseline:
 Phase 3 execution context split baseline:
 
 - `docs/008-contract-execution-context-split.md`
+
+Phase 4 contract sandbox baseline:
+
+- `docs/009-contract-sandbox-alc.md`
 
 ## Roadmap
 
