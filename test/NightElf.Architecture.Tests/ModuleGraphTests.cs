@@ -1,6 +1,9 @@
 using NightElf.Core;
 using NightElf.Core.Modularity;
 using NightElf.Database;
+using NightElf.Database.Hosting;
+using NightElf.Database.Redis;
+using NightElf.Database.Tsavorite;
 using NightElf.Kernel.Core;
 
 namespace NightElf.Architecture.Tests;
@@ -21,6 +24,23 @@ public sealed class ModuleGraphTests
         var dependency = GetDependencyAttribute<NightElfKernelCoreModule>();
 
         Assert.Contains(typeof(NightElfDatabaseModule), dependency.Dependencies);
+    }
+
+    [Fact]
+    public void DatabaseRedisModule_Should_Depend_On_DatabaseModule()
+    {
+        var dependency = GetDependencyAttribute<NightElfDatabaseRedisModule>();
+
+        Assert.Contains(typeof(NightElfDatabaseModule), dependency.Dependencies);
+    }
+
+    [Fact]
+    public void DatabaseHostingModule_Should_Depend_On_Redis_And_Tsavorite_Modules()
+    {
+        var dependency = GetDependencyAttribute<NightElfDatabaseHostingModule>();
+
+        Assert.Contains(typeof(NightElfDatabaseRedisModule), dependency.Dependencies);
+        Assert.Contains(typeof(NightElfDatabaseTsavoriteModule), dependency.Dependencies);
     }
 
     [Fact]

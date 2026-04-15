@@ -14,6 +14,15 @@ public sealed class TsavoriteStoreSetOptions
 
     public TsavoriteStoreProfile IndexStore { get; set; } = TsavoriteStoreProfile.CreateIndexStore();
 
+    public void Validate()
+    {
+        ValidatePath(DataRootPath, nameof(DataRootPath));
+        ValidatePath(CheckpointRootPath, nameof(CheckpointRootPath));
+        ValidateProfile(BlockStore, TsavoriteStoreKind.Block, nameof(BlockStore));
+        ValidateProfile(StateStore, TsavoriteStoreKind.State, nameof(StateStore));
+        ValidateProfile(IndexStore, TsavoriteStoreKind.Index, nameof(IndexStore));
+    }
+
     public TsavoriteStoreProfile GetProfile(TsavoriteStoreKind storeKind)
     {
         return storeKind switch
@@ -42,5 +51,41 @@ public sealed class TsavoriteStoreSetOptions
             RemoveOutdatedCheckpoints = profile.RemoveOutdatedCheckpoints,
             TryRecoverLatest = profile.TryRecoverLatest
         };
+    }
+
+    private static void ValidatePath(string path, string optionName)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new InvalidOperationException($"NightElf:Database:Tsavorite:{optionName} must not be empty.");
+        }
+    }
+
+    private static void ValidateProfile(
+        TsavoriteStoreProfile profile,
+        TsavoriteStoreKind expectedStoreKind,
+        string optionName)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+
+        if (profile.StoreKind != expectedStoreKind)
+        {
+            throw new InvalidOperationException(
+                $"NightElf:Database:Tsavorite:{optionName}:StoreKind must be {expectedStoreKind}.");
+        }
+
+        ValidatePositive(profile.IndexSize, optionName, nameof(profile.IndexSize));
+        ValidatePositive(profile.PageSize, optionName, nameof(profile.PageSize));
+        ValidatePositive(profile.SegmentSize, optionName, nameof(profile.SegmentSize));
+        ValidatePositive(profile.MemorySize, optionName, nameof(profile.MemorySize));
+    }
+
+    private static void ValidatePositive(long value, string optionName, string propertyName)
+    {
+        if (value <= 0)
+        {
+            throw new InvalidOperationException(
+                $"NightElf:Database:Tsavorite:{optionName}:{propertyName} must be greater than zero.");
+        }
     }
 }
