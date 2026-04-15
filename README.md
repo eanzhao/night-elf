@@ -89,8 +89,33 @@ night-elf/
 │   └── NightElf.Launcher/             # Entry point
 ├── contract/                           # System contracts
 ├── test/                               # Tests
-└── protobuf/                           # Proto definitions
+├── protobuf/                           # Proto definitions
+├── Directory.Build.props               # Shared build defaults
+├── global.json                         # SDK pin and roll-forward policy
+└── NightElf.slnx                       # XML solution file
 ```
+
+## Build Baseline
+
+The repository is bootstrapped around `NightElf.slnx` with shared build settings in `Directory.Build.props`.
+
+Requirements:
+
+- .NET SDK `10.0.100` feature band or newer
+
+Common commands:
+
+```bash
+dotnet restore NightElf.slnx
+dotnet test NightElf.slnx
+```
+
+Current bootstrap projects:
+
+- `src/NightElf.Core`
+- `src/NightElf.Database`
+- `src/NightElf.Kernel.Core`
+- `test/NightElf.Architecture.Tests`
 
 ## Roadmap
 

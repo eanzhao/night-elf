@@ -89,8 +89,33 @@ night-elf/
 │   └── NightElf.Launcher/             # 启动入口
 ├── contract/                           # 系统合约
 ├── test/                               # 测试
-└── protobuf/                           # Proto 定义
+├── protobuf/                           # Proto 定义
+├── Directory.Build.props               # 共享构建默认值
+├── global.json                         # SDK 锁定与 roll-forward 策略
+└── NightElf.slnx                       # XML 解决方案文件
 ```
+
+## 构建基线
+
+仓库当前以 `NightElf.slnx` 为解决方案入口，并通过 `Directory.Build.props` 统一构建配置。
+
+环境要求：
+
+- .NET SDK `10.0.100` feature band 或更新版本
+
+常用命令：
+
+```bash
+dotnet restore NightElf.slnx
+dotnet test NightElf.slnx
+```
+
+当前已初始化的核心项目：
+
+- `src/NightElf.Core`
+- `src/NightElf.Database`
+- `src/NightElf.Kernel.Core`
+- `test/NightElf.Architecture.Tests`
 
 ## 实施路线
 

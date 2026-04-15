@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\NightElf.Core\NightElf.Core.csproj" />
+    <ProjectReference Include="..\NightElf.Database\NightElf.Database.csproj" />
+  </ItemGroup>
+
+</Project>

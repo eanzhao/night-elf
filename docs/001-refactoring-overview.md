@@ -654,7 +654,7 @@ night-elf/
 ├── protobuf/                         # Proto 定义（从 AElf 继承）
 ├── global.json                       # .NET 10 SDK 版本锁定
 ├── Directory.Build.props             # 全局构建属性 (net10.0 TFM)
-└── NightElf.sln
+└── NightElf.slnx
 ```
 
 ### 5.1 构建配置
