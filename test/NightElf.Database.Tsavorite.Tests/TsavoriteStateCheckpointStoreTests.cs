@@ -131,6 +131,70 @@ public sealed class TsavoriteStateCheckpointStoreTests
         }
     }
 
+    [Fact]
+    public async Task GetCheckpoints_Should_Throw_With_MetadataPath_When_Catalog_Is_Corrupted()
+    {
+        var rootPath = CreateRootPath();
+
+        try
+        {
+            using var database = CreateDatabase(rootPath, removeOutdatedCheckpoints: false);
+            var checkpointStore = new TsavoriteStateCheckpointStore<TestDbContext>(
+                database,
+                new TsavoriteStateCheckpointStoreOptions
+                {
+                    RetainedCheckpointCount = 2
+                });
+
+            await File.WriteAllTextAsync(checkpointStore.MetadataPath, "{ not-valid-json");
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                checkpointStore.GetCheckpointsAsync());
+
+            Assert.Contains(checkpointStore.MetadataPath, exception.Message, StringComparison.Ordinal);
+            Assert.NotNull(exception.InnerException);
+        }
+        finally
+        {
+            DeleteRootPath(rootPath);
+        }
+    }
+
+    [Fact]
+    public async Task RecoverToCheckpoint_Should_Throw_With_Checkpoint_Context_When_Tokens_Are_Invalid()
+    {
+        var rootPath = CreateRootPath();
+
+        try
+        {
+            using var database = CreateDatabase(rootPath);
+            var checkpointStore = new TsavoriteStateCheckpointStore<TestDbContext>(database);
+            var version = new StateCommitVersion(21, "block-021");
+
+            await checkpointStore.ApplyChangesAsync(
+                version,
+                new Dictionary<string, byte[]>
+                {
+                    ["state:key"] = [2, 1]
+                });
+
+            var checkpoint = await checkpointStore.AdvanceCheckpointAsync(version);
+            var invalidCheckpoint = CloneCheckpoint(
+                checkpoint,
+                hybridLogCheckpointToken: Guid.NewGuid());
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                checkpointStore.RecoverToCheckpointAsync(invalidCheckpoint));
+
+            Assert.Contains(checkpoint.Name, exception.Message, StringComparison.Ordinal);
+            Assert.Contains(checkpoint.BlockHeight.ToString(), exception.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            DeleteRootPath(rootPath);
+        }
+    }
+
     private static TsavoriteDatabase<TestDbContext> CreateDatabase(
         string rootPath,
         bool removeOutdatedCheckpoints = true)
@@ -151,6 +215,24 @@ public sealed class TsavoriteStateCheckpointStoreTests
     private static string CreateRootPath()
     {
         return Path.Combine(Path.GetTempPath(), "nightelf-tsavorite-checkpoint-tests", Guid.NewGuid().ToString("N"));
+    }
+
+    private static StateCheckpointDescriptor CloneCheckpoint(
+        StateCheckpointDescriptor descriptor,
+        Guid? hybridLogCheckpointToken = null,
+        Guid? indexCheckpointToken = null)
+    {
+        return new StateCheckpointDescriptor
+        {
+            Name = descriptor.Name,
+            BlockHeight = descriptor.BlockHeight,
+            BlockHash = descriptor.BlockHash,
+            StoreVersion = descriptor.StoreVersion,
+            HybridLogCheckpointToken = hybridLogCheckpointToken ?? descriptor.HybridLogCheckpointToken,
+            IndexCheckpointToken = indexCheckpointToken ?? descriptor.IndexCheckpointToken,
+            IsIncremental = descriptor.IsIncremental,
+            CreatedAtUtc = descriptor.CreatedAtUtc
+        };
     }
 
     private static void DeleteRootPath(string rootPath)

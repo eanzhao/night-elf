@@ -7,6 +7,7 @@ namespace NightElf.Kernel.Core;
 public sealed class ChainStateStore : IChainStateStore
 {
     public const string BestChainKey = "chain:best";
+    public const string BestChainCheckpointKey = "chain:best:checkpoint";
 
     public ChainStateStore(
         IKeyValueDatabase<ChainStateDbContext> database,
@@ -28,22 +29,24 @@ public sealed class ChainStateStore : IChainStateStore
             return null;
         }
 
-        return JsonSerializer.Deserialize(
-                   bytes,
-                   ChainStateJsonSerializerContext.Default.BlockReference)
-               ?? throw new InvalidOperationException("Failed to deserialize the best-chain pointer.");
+        return DeserializeBlockReference(bytes);
     }
 
-    public Task SetBestChainAsync(BlockReference bestChain, CancellationToken cancellationToken = default)
+    public async Task SetBestChainAsync(BlockReference bestChain, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(bestChain);
 
-        return Database.SetAsync(
-            BestChainKey,
-            JsonSerializer.SerializeToUtf8Bytes(
-                bestChain,
-                ChainStateJsonSerializerContext.Default.BlockReference),
-            cancellationToken);
+        var bytes = SerializeBlockReference(bestChain);
+
+        await Database.SetAsync(BestChainKey, bytes, cancellationToken).ConfigureAwait(false);
+        await CheckpointStore.ApplyChangesAsync(
+                new StateCommitVersion(bestChain.Height, bestChain.Hash),
+                new Dictionary<string, byte[]>(1, StringComparer.Ordinal)
+                {
+                    [BestChainCheckpointKey] = bytes
+                },
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public Task ApplyChangesAsync(
@@ -72,13 +75,31 @@ public sealed class ChainStateStore : IChainStateStore
             cancellationToken);
     }
 
-    public Task RecoverToCheckpointAsync(
+    public async Task RecoverToCheckpointAsync(
         StateCheckpointDescriptor descriptor,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        return CheckpointStore.RecoverToCheckpointAsync(descriptor, cancellationToken);
+        await CheckpointStore.RecoverToCheckpointAsync(descriptor, cancellationToken).ConfigureAwait(false);
+        var bestChainRecord = await CheckpointStore.GetVersionedStateAsync(BestChainCheckpointKey, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (bestChainRecord is null || bestChainRecord.IsDeleted)
+        {
+            throw new InvalidOperationException(
+                $"Checkpoint '{descriptor.Name}' at height {descriptor.BlockHeight} does not contain a recoverable best-chain marker.");
+        }
+
+        var recoveredBestChain = DeserializeBlockReference(bestChainRecord.Value);
+        if (recoveredBestChain.Height != descriptor.BlockHeight || !string.Equals(recoveredBestChain.Hash, descriptor.BlockHash, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Checkpoint '{descriptor.Name}' at height {descriptor.BlockHeight} recovered best-chain marker '{recoveredBestChain.Height}:{recoveredBestChain.Hash}', indicating a checkpoint/token mismatch.");
+        }
+
+        var bestChain = new BlockReference(descriptor.BlockHeight, descriptor.BlockHash);
+        await Database.SetAsync(BestChainKey, SerializeBlockReference(bestChain), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task RecoverToLatestLibCheckpointAsync(CancellationToken cancellationToken = default)
@@ -101,5 +122,20 @@ public sealed class ChainStateStore : IChainStateStore
         CancellationToken cancellationToken = default)
     {
         return CheckpointStore.GetCheckpointsAsync(cancellationToken);
+    }
+
+    private static byte[] SerializeBlockReference(BlockReference blockReference)
+    {
+        return JsonSerializer.SerializeToUtf8Bytes(
+            blockReference,
+            ChainStateJsonSerializerContext.Default.BlockReference);
+    }
+
+    private static BlockReference DeserializeBlockReference(byte[] value)
+    {
+        return JsonSerializer.Deserialize(
+                   value,
+                   ChainStateJsonSerializerContext.Default.BlockReference)
+               ?? throw new InvalidOperationException("Failed to deserialize the best-chain pointer.");
     }
 }

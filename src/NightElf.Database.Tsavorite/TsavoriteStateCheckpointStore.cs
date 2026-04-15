@@ -165,21 +165,41 @@ public sealed class TsavoriteStateCheckpointStore<TContext> : IStateCheckpointSt
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
+        if (descriptor.IndexCheckpointToken == Guid.Empty || descriptor.HybridLogCheckpointToken == Guid.Empty)
+        {
+            throw new InvalidOperationException(
+                $"Checkpoint '{descriptor.Name}' at height {descriptor.BlockHeight} is missing Tsavorite recovery tokens.");
+        }
+
         await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var recoveredVersion = await _database.RecoverAsync(
-                    descriptor.IndexCheckpointToken,
-                    descriptor.HybridLogCheckpointToken,
-                    _options.RecoveryPreloadPages,
-                    undoNextVersion: true,
-                    cancellationToken)
-                .ConfigureAwait(false);
-
-            if (recoveredVersion != descriptor.StoreVersion)
+            long recoveredVersion;
+            try
+            {
+                recoveredVersion = await _database.RecoverAsync(
+                        descriptor.IndexCheckpointToken,
+                        descriptor.HybridLogCheckpointToken,
+                        _options.RecoveryPreloadPages,
+                        undoNextVersion: true,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
             {
                 throw new InvalidOperationException(
-                    $"Tsavorite recovered to store version {recoveredVersion}, expected {descriptor.StoreVersion}.");
+                    $"Failed to recover checkpoint '{descriptor.Name}' at height {descriptor.BlockHeight}.",
+                    exception);
+            }
+
+            if (descriptor.StoreVersion >= 0 && recoveredVersion < descriptor.StoreVersion)
+            {
+                throw new InvalidOperationException(
+                    $"Checkpoint '{descriptor.Name}' at height {descriptor.BlockHeight} recovered to store version {recoveredVersion}, expected at least {descriptor.StoreVersion}.");
             }
 
             var checkpoints = await LoadCatalogAsync(cancellationToken).ConfigureAwait(false);
@@ -253,12 +273,26 @@ public sealed class TsavoriteStateCheckpointStore<TContext> : IStateCheckpointSt
             return [];
         }
 
-        await using var stream = File.OpenRead(MetadataPath);
-        var catalog = await JsonSerializer.DeserializeAsync(
-                stream,
-                TsavoriteStateCheckpointStoreJsonSerializerContext.Default.TsavoriteStateCheckpointCatalog,
-                cancellationToken)
-            .ConfigureAwait(false);
+        TsavoriteStateCheckpointCatalog? catalog;
+        try
+        {
+            await using var stream = File.OpenRead(MetadataPath);
+            catalog = await JsonSerializer.DeserializeAsync(
+                    stream,
+                    TsavoriteStateCheckpointStoreJsonSerializerContext.Default.TsavoriteStateCheckpointCatalog,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is JsonException or IOException)
+        {
+            throw new InvalidOperationException(
+                $"Failed to read checkpoint catalog '{MetadataPath}'.",
+                exception);
+        }
 
         return catalog?.Checkpoints?
             .OrderBy(checkpoint => checkpoint.BlockHeight)
