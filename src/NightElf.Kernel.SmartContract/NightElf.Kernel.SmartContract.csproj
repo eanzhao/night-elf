@@ -4,6 +4,7 @@
     <ProjectReference Include="..\NightElf.Core\NightElf.Core.csproj" />
     <ProjectReference Include="..\NightElf.Database\NightElf.Database.csproj" />
     <ProjectReference Include="..\NightElf.Kernel.Core\NightElf.Kernel.Core.csproj" />
+    <ProjectReference Include="..\NightElf.Sdk.CSharp\NightElf.Sdk.CSharp.csproj" />
   </ItemGroup>
 
 </Project>

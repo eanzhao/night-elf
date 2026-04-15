@@ -123,11 +123,14 @@ dotnet test NightElf.slnx
 - `src/NightElf.Database.Tsavorite`
 - `src/NightElf.Kernel.Core`
 - `src/NightElf.Kernel.SmartContract`
+- `src/NightElf.Sdk.CSharp`
+- `src/NightElf.Sdk.SourceGen`
 - `test/NightElf.Architecture.Tests`
 - `test/NightElf.Database.Hosting.Tests`
 - `test/NightElf.Database.Tsavorite.Tests`
 - `test/NightElf.Kernel.SmartContract.Tests`
 - `test/NightElf.Phase1.Baseline.Tests`
+- `test/NightElf.Sdk.SourceGen.Tests`
 
 Phase 1 兼容性测试基线：
 
@@ -142,6 +145,10 @@ Phase 2 benchmark 基线：
 
 - `docs/004-benchmark-harness.md`
 - `eng/run-benchmarks.sh`
+
+Phase 3 合约调度基线：
+
+- `docs/005-contract-dispatch-source-generator.md`
 
 ## 实施路线
 

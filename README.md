@@ -123,11 +123,14 @@ Current bootstrap projects:
 - `src/NightElf.Database.Tsavorite`
 - `src/NightElf.Kernel.Core`
 - `src/NightElf.Kernel.SmartContract`
+- `src/NightElf.Sdk.CSharp`
+- `src/NightElf.Sdk.SourceGen`
 - `test/NightElf.Architecture.Tests`
 - `test/NightElf.Database.Hosting.Tests`
 - `test/NightElf.Database.Tsavorite.Tests`
 - `test/NightElf.Kernel.SmartContract.Tests`
 - `test/NightElf.Phase1.Baseline.Tests`
+- `test/NightElf.Sdk.SourceGen.Tests`
 
 Phase 1 compatibility baseline:
 
@@ -142,6 +145,10 @@ Phase 2 benchmark baseline:
 
 - `docs/004-benchmark-harness.md`
 - `eng/run-benchmarks.sh`
+
+Phase 3 contract dispatch baseline:
+
+- `docs/005-contract-dispatch-source-generator.md`
 
 ## Roadmap
 

@@ -10,6 +10,8 @@
     <Project Path="src/NightElf.Database/NightElf.Database.csproj" />
     <Project Path="src/NightElf.Kernel.Core/NightElf.Kernel.Core.csproj" />
     <Project Path="src/NightElf.Kernel.SmartContract/NightElf.Kernel.SmartContract.csproj" />
+    <Project Path="src/NightElf.Sdk.CSharp/NightElf.Sdk.CSharp.csproj" />
+    <Project Path="src/NightElf.Sdk.SourceGen/NightElf.Sdk.SourceGen.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/NightElf.Architecture.Tests/NightElf.Architecture.Tests.csproj" />
@@ -17,5 +19,6 @@
     <Project Path="test/NightElf.Database.Tsavorite.Tests/NightElf.Database.Tsavorite.Tests.csproj" />
     <Project Path="test/NightElf.Kernel.SmartContract.Tests/NightElf.Kernel.SmartContract.Tests.csproj" />
     <Project Path="test/NightElf.Phase1.Baseline.Tests/NightElf.Phase1.Baseline.Tests.csproj" />
+    <Project Path="test/NightElf.Sdk.SourceGen.Tests/NightElf.Sdk.SourceGen.Tests.csproj" />
   </Folder>
 </Solution>

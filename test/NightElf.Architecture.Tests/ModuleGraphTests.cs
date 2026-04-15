@@ -6,6 +6,7 @@ using NightElf.Database.Redis;
 using NightElf.Database.Tsavorite;
 using NightElf.Kernel.Core;
 using NightElf.Kernel.SmartContract;
+using NightElf.Sdk.CSharp;
 
 namespace NightElf.Architecture.Tests;
 
@@ -33,6 +34,15 @@ public sealed class ModuleGraphTests
         var dependency = GetDependencyAttribute<NightElfKernelSmartContractModule>();
 
         Assert.Contains(typeof(NightElfKernelCoreModule), dependency.Dependencies);
+        Assert.Contains(typeof(NightElfSdkCSharpModule), dependency.Dependencies);
+    }
+
+    [Fact]
+    public void SdkCSharpModule_Should_Depend_On_CoreModule()
+    {
+        var dependency = GetDependencyAttribute<NightElfSdkCSharpModule>();
+
+        Assert.Contains(typeof(NightElfCoreModule), dependency.Dependencies);
     }
 
     [Fact]
