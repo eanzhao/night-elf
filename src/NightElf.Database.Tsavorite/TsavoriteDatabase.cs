@@ -26,6 +26,10 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
     {
         ArgumentNullException.ThrowIfNull(options);
 
+        StoreKind = options.StoreKind;
+        DataPath = options.ResolveDataPath();
+        CheckpointPath = options.ResolveCheckpointPath();
+
         var settings = CreateSettings(options);
         var storeFunctions = StoreFunctions<SpanByte, SpanByte>.Create();
 
@@ -34,6 +38,12 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
             storeFunctions,
             static (allocatorSettings, functions) => new TsavoriteAllocator(allocatorSettings, functions));
     }
+
+    public TsavoriteStoreKind StoreKind { get; }
+
+    public string DataPath { get; }
+
+    public string CheckpointPath { get; }
 
     public async Task<byte[]?> GetAsync(string key, CancellationToken cancellationToken = default)
     {
@@ -137,9 +147,6 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
 
     private static KVSettings<SpanByte, SpanByte> CreateSettings(TsavoriteDatabaseOptions<TContext> options)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.DataPath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.CheckpointPath);
-
         if (options.IndexSize <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(options.IndexSize));
@@ -160,8 +167,8 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
             throw new ArgumentOutOfRangeException(nameof(options.MemorySize));
         }
 
-        var dataPath = Path.GetFullPath(options.DataPath);
-        var checkpointPath = Path.GetFullPath(options.CheckpointPath);
+        var dataPath = options.ResolveDataPath();
+        var checkpointPath = options.ResolveCheckpointPath();
 
         Directory.CreateDirectory(dataPath);
         Directory.CreateDirectory(checkpointPath);

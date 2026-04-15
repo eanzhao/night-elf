@@ -5,9 +5,11 @@ namespace NightElf.Database.Tsavorite;
 public sealed class TsavoriteDatabaseOptions<TContext>
     where TContext : KeyValueDbContext<TContext>
 {
-    public string DataPath { get; set; } = Path.Combine("data", "tsavorite", typeof(TContext).Name);
+    public TsavoriteStoreKind StoreKind { get; set; } = TsavoriteStoreKind.State;
 
-    public string CheckpointPath { get; set; } = Path.Combine("data", "tsavorite-checkpoints", typeof(TContext).Name);
+    public string? DataPath { get; set; }
+
+    public string? CheckpointPath { get; set; }
 
     public long IndexSize { get; set; } = 1L << 20;
 
@@ -20,4 +22,14 @@ public sealed class TsavoriteDatabaseOptions<TContext>
     public bool RemoveOutdatedCheckpoints { get; set; } = true;
 
     public bool TryRecoverLatest { get; set; } = true;
+
+    internal string ResolveDataPath()
+    {
+        return Path.GetFullPath(DataPath ?? Path.Combine("data", "tsavorite", StoreKind.ToDirectoryName(), typeof(TContext).Name));
+    }
+
+    internal string ResolveCheckpointPath()
+    {
+        return Path.GetFullPath(CheckpointPath ?? Path.Combine("data", "tsavorite-checkpoints", StoreKind.ToDirectoryName(), typeof(TContext).Name));
+    }
 }
