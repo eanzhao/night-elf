@@ -5,6 +5,7 @@ using NightElf.Database.Hosting;
 using NightElf.Database.Redis;
 using NightElf.Database.Tsavorite;
 using NightElf.Kernel.Core;
+using NightElf.Kernel.SmartContract;
 
 namespace NightElf.Architecture.Tests;
 
@@ -24,6 +25,14 @@ public sealed class ModuleGraphTests
         var dependency = GetDependencyAttribute<NightElfKernelCoreModule>();
 
         Assert.Contains(typeof(NightElfDatabaseModule), dependency.Dependencies);
+    }
+
+    [Fact]
+    public void KernelSmartContractModule_Should_Depend_On_KernelCoreModule()
+    {
+        var dependency = GetDependencyAttribute<NightElfKernelSmartContractModule>();
+
+        Assert.Contains(typeof(NightElfKernelCoreModule), dependency.Dependencies);
     }
 
     [Fact]

@@ -119,9 +119,11 @@ Current bootstrap projects:
 - `src/NightElf.Database.Hosting`
 - `src/NightElf.Database.Tsavorite`
 - `src/NightElf.Kernel.Core`
+- `src/NightElf.Kernel.SmartContract`
 - `test/NightElf.Architecture.Tests`
 - `test/NightElf.Database.Hosting.Tests`
 - `test/NightElf.Database.Tsavorite.Tests`
+- `test/NightElf.Kernel.SmartContract.Tests`
 - `test/NightElf.Phase1.Baseline.Tests`
 
 Phase 1 compatibility baseline:
