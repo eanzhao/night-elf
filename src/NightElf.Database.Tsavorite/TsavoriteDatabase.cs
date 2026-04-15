@@ -29,6 +29,7 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
         StoreKind = options.StoreKind;
         DataPath = options.ResolveDataPath();
         CheckpointPath = options.ResolveCheckpointPath();
+        RemoveOutdatedCheckpoints = options.RemoveOutdatedCheckpoints;
 
         var settings = CreateSettings(options);
         var storeFunctions = StoreFunctions<SpanByte, SpanByte>.Create();
@@ -44,6 +45,26 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
     public string DataPath { get; }
 
     public string CheckpointPath { get; }
+
+    public bool RemoveOutdatedCheckpoints { get; }
+
+    public long CurrentVersion
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _store.CurrentVersion;
+        }
+    }
+
+    public long LastCheckpointedVersion
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _store.LastCheckpointedVersion;
+        }
+    }
 
     public async Task<byte[]?> GetAsync(string key, CancellationToken cancellationToken = default)
     {
@@ -132,6 +153,70 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
 
         using var session = CreateSession();
         return await ExistsAsync(session.BasicContext, key, cancellationToken).ConfigureAwait(false);
+    }
+
+    public bool CanTakeIncrementalCheckpoint(CheckpointType checkpointType, out Guid checkpointToken)
+    {
+        ThrowIfDisposed();
+
+        checkpointToken = Guid.Empty;
+        return _store.CanTakeIncrementalCheckpoint(checkpointType, out checkpointToken);
+    }
+
+    public async Task<(bool Success, Guid Token)> TakeHybridLogCheckpointAsync(
+        CheckpointType checkpointType,
+        bool tryIncremental,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+
+        return await _store.TakeHybridLogCheckpointAsync(checkpointType, tryIncremental, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<(bool Success, Guid Token)> TakeFullCheckpointAsync(
+        CheckpointType checkpointType,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+
+        return await _store.TakeFullCheckpointAsync(checkpointType, cancellationToken, null)
+            .ConfigureAwait(false);
+    }
+
+    public Task CompleteCheckpointAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+
+        return _store.CompleteCheckpointAsync(cancellationToken).AsTask();
+    }
+
+    public void GetLatestCheckpointTokens(out Guid hybridLogCheckpointToken, out Guid indexCheckpointToken, out long storeVersion)
+    {
+        ThrowIfDisposed();
+
+        hybridLogCheckpointToken = Guid.Empty;
+        indexCheckpointToken = Guid.Empty;
+        storeVersion = -1;
+        _store.GetLatestCheckpointTokens(out hybridLogCheckpointToken, out indexCheckpointToken, out storeVersion);
+    }
+
+    public async Task<long> RecoverAsync(
+        Guid indexCheckpointToken,
+        Guid hybridLogCheckpointToken,
+        int numPagesToPreload = 0,
+        bool undoNextVersion = true,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+
+        return await _store.RecoverAsync(
+                indexCheckpointToken,
+                hybridLogCheckpointToken,
+                numPagesToPreload,
+                undoNextVersion,
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public void Dispose()
