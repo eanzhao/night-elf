@@ -72,6 +72,8 @@ Critical paths (block processing, state merging) use `System.Threading.Channels`
 ```
 night-elf/
 ├── docs/                              # Design documents
+├── benchmarks/
+│   └── NightElf.Benchmarks/           # BenchmarkDotNet harness
 ├── src/
 │   ├── NightElf.Core/                 # Core types, DI, module base
 │   ├── NightElf.Database/             # Database abstraction layer
@@ -109,6 +111,7 @@ Common commands:
 dotnet restore NightElf.slnx
 dotnet test NightElf.slnx
 ./eng/test-phase1-baseline.sh
+./eng/run-benchmarks.sh
 ```
 
 Current bootstrap projects:
@@ -134,6 +137,11 @@ Phase 1 compatibility baseline:
 Phase 2 async audit baseline:
 
 - `docs/003-runsync-audit.md`
+
+Phase 2 benchmark baseline:
+
+- `docs/004-benchmark-harness.md`
+- `eng/run-benchmarks.sh`
 
 ## Roadmap
 

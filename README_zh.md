@@ -72,6 +72,8 @@ AElf 仅使用 GET/SET/MGET/MSET/DEL/EXISTS 六种操作，不依赖 pub/sub、L
 ```
 night-elf/
 ├── docs/                              # 设计文档
+├── benchmarks/
+│   └── NightElf.Benchmarks/           # BenchmarkDotNet 基准项目
 ├── src/
 │   ├── NightElf.Core/                 # 核心类型、DI、模块基类
 │   ├── NightElf.Database/             # 数据库抽象层
@@ -109,6 +111,7 @@ night-elf/
 dotnet restore NightElf.slnx
 dotnet test NightElf.slnx
 ./eng/test-phase1-baseline.sh
+./eng/run-benchmarks.sh
 ```
 
 当前已初始化的核心项目：
@@ -134,6 +137,11 @@ Phase 1 兼容性测试基线：
 Phase 2 async 审计基线：
 
 - `docs/003-runsync-audit.md`
+
+Phase 2 benchmark 基线：
+
+- `docs/004-benchmark-harness.md`
+- `eng/run-benchmarks.sh`
 
 ## 实施路线
 

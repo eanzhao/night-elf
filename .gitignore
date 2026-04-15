@@ -3,3 +3,5 @@ obj/
 TestResults/
 .vs/
 .DS_Store
+BenchmarkDotNet.Artifacts/
+artifacts/benchmarks/

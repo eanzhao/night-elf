@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\NightElf.Database.Redis\NightElf.Database.Redis.csproj" />
+    <ProjectReference Include="..\..\src\NightElf.Database.Tsavorite\NightElf.Database.Tsavorite.csproj" />
+    <ProjectReference Include="..\..\src\NightElf.Database\NightElf.Database.csproj" />
+    <ProjectReference Include="..\..\src\NightElf.Kernel.SmartContract\NightElf.Kernel.SmartContract.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
+
+</Project>

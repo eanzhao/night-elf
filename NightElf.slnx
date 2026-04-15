@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/NightElf.Benchmarks/NightElf.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/NightElf.Core/NightElf.Core.csproj" />
     <Project Path="src/NightElf.Database.Hosting/NightElf.Database.Hosting.csproj" />
