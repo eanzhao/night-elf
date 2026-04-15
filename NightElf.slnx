@@ -21,6 +21,7 @@
     <Project Path="test/NightElf.Kernel.Parallel.Tests/NightElf.Kernel.Parallel.Tests.csproj" />
     <Project Path="test/NightElf.Kernel.SmartContract.Tests/NightElf.Kernel.SmartContract.Tests.csproj" />
     <Project Path="test/NightElf.Phase1.Baseline.Tests/NightElf.Phase1.Baseline.Tests.csproj" />
+    <Project Path="test/NightElf.Sdk.CSharp.Tests/NightElf.Sdk.CSharp.Tests.csproj" />
     <Project Path="test/NightElf.Sdk.SourceGen.Tests/NightElf.Sdk.SourceGen.Tests.csproj" />
   </Folder>
 </Solution>

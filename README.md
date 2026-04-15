@@ -132,6 +132,7 @@ Current bootstrap projects:
 - `test/NightElf.Kernel.Parallel.Tests`
 - `test/NightElf.Kernel.SmartContract.Tests`
 - `test/NightElf.Phase1.Baseline.Tests`
+- `test/NightElf.Sdk.CSharp.Tests`
 - `test/NightElf.Sdk.SourceGen.Tests`
 
 Phase 1 compatibility baseline:
@@ -159,6 +160,10 @@ Phase 3 resource extraction baseline:
 Phase 3 conflict retry baseline:
 
 - `docs/007-conflict-retry-strategy.md`
+
+Phase 3 execution context split baseline:
+
+- `docs/008-contract-execution-context-split.md`
 
 ## Roadmap
 

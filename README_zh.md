@@ -132,6 +132,7 @@ dotnet test NightElf.slnx
 - `test/NightElf.Kernel.Parallel.Tests`
 - `test/NightElf.Kernel.SmartContract.Tests`
 - `test/NightElf.Phase1.Baseline.Tests`
+- `test/NightElf.Sdk.CSharp.Tests`
 - `test/NightElf.Sdk.SourceGen.Tests`
 
 Phase 1 兼容性测试基线：
@@ -159,6 +160,10 @@ Phase 3 资源声明基线：
 Phase 3 冲突重试基线：
 
 - `docs/007-conflict-retry-strategy.md`
+
+Phase 3 执行上下文拆分基线：
+
+- `docs/008-contract-execution-context-split.md`
 
 ## 实施路线
 
