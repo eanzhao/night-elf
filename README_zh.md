@@ -122,6 +122,7 @@ dotnet test NightElf.slnx
 - `src/NightElf.Database.Hosting`
 - `src/NightElf.Database.Tsavorite`
 - `src/NightElf.Kernel.Core`
+- `src/NightElf.Kernel.Parallel`
 - `src/NightElf.Kernel.SmartContract`
 - `src/NightElf.Sdk.CSharp`
 - `src/NightElf.Sdk.SourceGen`
@@ -149,6 +150,10 @@ Phase 2 benchmark 基线：
 Phase 3 合约调度基线：
 
 - `docs/005-contract-dispatch-source-generator.md`
+
+Phase 3 资源声明基线：
+
+- `docs/006-resource-declaration-source-generator.md`
 
 ## 实施路线
 

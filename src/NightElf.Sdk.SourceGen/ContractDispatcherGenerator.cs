@@ -12,6 +12,7 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
     private const string ContractBaseTypeName = "NightElf.Sdk.CSharp.CSharpSmartContract";
     private const string ContractMethodAttributeName = "NightElf.Sdk.CSharp.ContractMethodAttribute";
     private const string CodecInterfaceTypeName = "NightElf.Sdk.CSharp.IContractCodec`1";
+    private const string EnumerableTypeName = "System.Collections.Generic.IEnumerable`1";
 
     private static readonly DiagnosticDescriptor ContractMustBePartial = new(
         id: "NE1001",
@@ -53,6 +54,22 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor MissingResourceExtractor = new(
+        id: "NE1006",
+        title: "Contract resource extractor is missing",
+        messageFormat: "Method '{0}' references missing resource extractor '{1}' for {2} keys.",
+        category: "NightElf.SourceGen",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor InvalidResourceExtractorSignature = new(
+        id: "NE1007",
+        title: "Contract resource extractor signature is invalid",
+        messageFormat: "Resource extractor '{0}' for method '{1}' must return IEnumerable<string> and accept zero parameters or one parameter matching the contract input type.",
+        category: "NightElf.SourceGen",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var contractMethods = context.SyntaxProvider.ForAttributeWithMetadataName(
@@ -76,6 +93,9 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
         }
 
         var dispatchName = methodSymbol.Name;
+        string? readExtractorName = null;
+        string? writeExtractorName = null;
+
         if (context.Attributes.Length > 0)
         {
             var attribute = context.Attributes[0];
@@ -85,9 +105,17 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
             {
                 dispatchName = explicitName;
             }
+
+            readExtractorName = GetNamedStringValue(attribute, "ReadExtractor");
+            writeExtractorName = GetNamedStringValue(attribute, "WriteExtractor");
         }
 
-        return new ContractMethodCandidate(methodSymbol.ContainingType, methodSymbol, dispatchName);
+        return new ContractMethodCandidate(
+            methodSymbol.ContainingType,
+            methodSymbol,
+            dispatchName,
+            readExtractorName,
+            writeExtractorName);
     }
 
     private static void Execute(
@@ -102,7 +130,9 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
 
         var contractBaseType = compilation.GetTypeByMetadataName(ContractBaseTypeName);
         var codecInterfaceType = compilation.GetTypeByMetadataName(CodecInterfaceTypeName);
-        if (contractBaseType is null || codecInterfaceType is null)
+        var stringEnumerableType = compilation.GetTypeByMetadataName(EnumerableTypeName);
+        var stringType = compilation.GetSpecialType(SpecialType.System_String);
+        if (contractBaseType is null || codecInterfaceType is null || stringEnumerableType is null || stringType.TypeKind == TypeKind.Error)
         {
             return;
         }
@@ -174,7 +204,13 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
                     continue;
                 }
 
-                if (!TryCreateMethodModel(candidate, codecInterfaceType, context, out var methodModel))
+                if (!TryCreateMethodModel(
+                        candidate,
+                        codecInterfaceType,
+                        stringEnumerableType,
+                        stringType,
+                        context,
+                        out var methodModel))
                 {
                     continue;
                 }
@@ -190,6 +226,8 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
     private static bool TryCreateMethodModel(
         ContractMethodCandidate candidate,
         INamedTypeSymbol codecInterfaceType,
+        INamedTypeSymbol stringEnumerableType,
+        ITypeSymbol stringType,
         SourceProductionContext context,
         out ContractMethodModel methodModel)
     {
@@ -232,8 +270,168 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
             }
         }
 
-        methodModel = new ContractMethodModel(candidate.DispatchName, methodSymbol.Name, inputType, methodSymbol.ReturnType);
+        if (!TryResolveResourceExtractor(
+                candidate,
+                candidate.ReadExtractorName,
+                "read",
+                inputType,
+                stringEnumerableType,
+                stringType,
+                context,
+                out var readExtractor))
+        {
+            return false;
+        }
+
+        if (!TryResolveResourceExtractor(
+                candidate,
+                candidate.WriteExtractorName,
+                "write",
+                inputType,
+                stringEnumerableType,
+                stringType,
+                context,
+                out var writeExtractor))
+        {
+            return false;
+        }
+
+        methodModel = new ContractMethodModel(
+            candidate.DispatchName,
+            methodSymbol.Name,
+            inputType,
+            methodSymbol.ReturnType,
+            readExtractor,
+            writeExtractor);
         return true;
+    }
+
+    private static bool TryResolveResourceExtractor(
+        ContractMethodCandidate candidate,
+        string? extractorName,
+        string resourceKind,
+        ITypeSymbol? inputType,
+        INamedTypeSymbol stringEnumerableType,
+        ITypeSymbol stringType,
+        SourceProductionContext context,
+        out ContractResourceExtractorModel? extractorModel)
+    {
+        extractorModel = null;
+        if (string.IsNullOrWhiteSpace(extractorName))
+        {
+            return true;
+        }
+
+        var matchingMethods = candidate.ContractSymbol
+            .GetMembers(extractorName!)
+            .OfType<IMethodSymbol>()
+            .Where(static method => method.MethodKind == MethodKind.Ordinary)
+            .ToArray();
+
+        if (matchingMethods.Length == 0)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                MissingResourceExtractor,
+                candidate.MethodSymbol.Locations.FirstOrDefault(),
+                candidate.MethodSymbol.ToDisplayString(),
+                extractorName,
+                resourceKind));
+            return false;
+        }
+
+        var validMethods = matchingMethods
+            .Where(method => IsValidResourceExtractor(method, inputType, stringEnumerableType, stringType, out _))
+            .ToArray();
+
+        if (validMethods.Length != 1)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                InvalidResourceExtractorSignature,
+                candidate.MethodSymbol.Locations.FirstOrDefault(),
+                extractorName,
+                candidate.MethodSymbol.ToDisplayString()));
+            return false;
+        }
+
+        _ = IsValidResourceExtractor(validMethods[0], inputType, stringEnumerableType, stringType, out var requiresInput);
+        extractorModel = new ContractResourceExtractorModel(validMethods[0].Name, requiresInput);
+        return true;
+    }
+
+    private static bool IsValidResourceExtractor(
+        IMethodSymbol methodSymbol,
+        ITypeSymbol? inputType,
+        INamedTypeSymbol stringEnumerableType,
+        ITypeSymbol stringType,
+        out bool requiresInput)
+    {
+        requiresInput = false;
+
+        if (methodSymbol.Parameters.Any(static parameter => parameter.RefKind != RefKind.None))
+        {
+            return false;
+        }
+
+        if (!ReturnsStringEnumerable(methodSymbol.ReturnType, stringEnumerableType, stringType))
+        {
+            return false;
+        }
+
+        if (methodSymbol.Parameters.Length == 0)
+        {
+            return true;
+        }
+
+        if (methodSymbol.Parameters.Length != 1 || inputType is null)
+        {
+            return false;
+        }
+
+        if (!SymbolEqualityComparer.Default.Equals(methodSymbol.Parameters[0].Type, inputType))
+        {
+            return false;
+        }
+
+        requiresInput = true;
+        return true;
+    }
+
+    private static bool ReturnsStringEnumerable(
+        ITypeSymbol typeSymbol,
+        INamedTypeSymbol stringEnumerableType,
+        ITypeSymbol stringType)
+    {
+        if (typeSymbol.SpecialType == SpecialType.System_String)
+        {
+            return false;
+        }
+
+        if (typeSymbol is IArrayTypeSymbol arrayTypeSymbol)
+        {
+            return SymbolEqualityComparer.Default.Equals(arrayTypeSymbol.ElementType, stringType);
+        }
+
+        if (typeSymbol is not INamedTypeSymbol namedTypeSymbol)
+        {
+            return false;
+        }
+
+        if (IsStringEnumerable(namedTypeSymbol, stringEnumerableType, stringType))
+        {
+            return true;
+        }
+
+        return namedTypeSymbol.AllInterfaces.Any(interfaceSymbol => IsStringEnumerable(interfaceSymbol, stringEnumerableType, stringType));
+    }
+
+    private static bool IsStringEnumerable(
+        INamedTypeSymbol typeSymbol,
+        INamedTypeSymbol stringEnumerableType,
+        ITypeSymbol stringType)
+    {
+        return SymbolEqualityComparer.Default.Equals(typeSymbol.OriginalDefinition, stringEnumerableType) &&
+               typeSymbol.TypeArguments.Length == 1 &&
+               SymbolEqualityComparer.Default.Equals(typeSymbol.TypeArguments[0], stringType);
     }
 
     private static bool ImplementsCodec(ITypeSymbol typeSymbol, INamedTypeSymbol codecInterfaceType)
@@ -319,6 +517,8 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
         builder.Append(contractSymbol.Name);
         builder.AppendLine();
         builder.AppendLine("{");
+        builder.AppendLine("    public override bool SupportsResourceExtraction => true;");
+        builder.AppendLine();
         builder.AppendLine("    protected override byte[] DispatchCore(string methodName, global::System.ReadOnlyMemory<byte> input)");
         builder.AppendLine("    {");
         builder.AppendLine("        return methodName switch");
@@ -359,9 +559,95 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
         builder.AppendLine("), methodName)");
         builder.AppendLine("        };");
         builder.AppendLine("    }");
+        builder.AppendLine();
+        builder.AppendLine("    protected override global::NightElf.Sdk.CSharp.ContractResourceSet DescribeResourcesCore(string methodName, global::System.ReadOnlyMemory<byte> input)");
+        builder.AppendLine("    {");
+        builder.AppendLine("        return methodName switch");
+        builder.AppendLine("        {");
+
+        for (var index = 0; index < methods.Count; index++)
+        {
+            var method = methods[index];
+
+            builder.Append("            \"");
+            builder.Append(method.DispatchName);
+            builder.Append("\" => DescribeResources_");
+            builder.Append(index.ToString("D2"));
+            builder.AppendLine("(input),");
+        }
+
+        builder.Append("            _ => throw new global::NightElf.Sdk.CSharp.ContractMethodNotFoundException(typeof(");
+        builder.Append(contractTypeName);
+        builder.AppendLine("), methodName)");
+        builder.AppendLine("        };");
+        builder.AppendLine("    }");
+
+        for (var index = 0; index < methods.Count; index++)
+        {
+            var method = methods[index];
+
+            builder.AppendLine();
+            builder.Append("    private global::NightElf.Sdk.CSharp.ContractResourceSet DescribeResources_");
+            builder.Append(index.ToString("D2"));
+            builder.AppendLine("(global::System.ReadOnlyMemory<byte> input)");
+            builder.AppendLine("    {");
+
+            if ((method.ReadExtractor?.RequiresInput ?? false) || (method.WriteExtractor?.RequiresInput ?? false))
+            {
+                var inputTypeName = method.InputType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                builder.Append("        var decodedInput = global::NightElf.Sdk.CSharp.ContractCodec.Decode<");
+                builder.Append(inputTypeName);
+                builder.Append(">(\"");
+                builder.Append(method.DispatchName);
+                builder.AppendLine("\", input.Span);");
+            }
+
+            builder.Append("        return global::NightElf.Sdk.CSharp.ContractResourceSet.Create(");
+            builder.Append(GetResourceExtractorInvocation(method.ReadExtractor));
+            builder.Append(", ");
+            builder.Append(GetResourceExtractorInvocation(method.WriteExtractor));
+            builder.AppendLine(");");
+            builder.AppendLine("    }");
+        }
+
         builder.AppendLine("}");
 
         return builder.ToString();
+    }
+
+    private static string GetResourceExtractorInvocation(ContractResourceExtractorModel? extractor)
+    {
+        if (!extractor.HasValue)
+        {
+            return "global::System.Array.Empty<string>()";
+        }
+
+        if (extractor.Value.RequiresInput)
+        {
+            return $"{extractor.Value.MethodName}(decodedInput)";
+        }
+
+        return $"{extractor.Value.MethodName}()";
+    }
+
+    private static string? GetNamedStringValue(AttributeData attributeData, string argumentName)
+    {
+        foreach (var namedArgument in attributeData.NamedArguments)
+        {
+            if (!string.Equals(namedArgument.Key, argumentName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (namedArgument.Value.Value is string stringValue && !string.IsNullOrWhiteSpace(stringValue))
+            {
+                return stringValue;
+            }
+
+            return null;
+        }
+
+        return null;
     }
 
     private static string GetHintName(INamedTypeSymbol contractSymbol)
@@ -394,11 +680,15 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
         public ContractMethodCandidate(
             INamedTypeSymbol contractSymbol,
             IMethodSymbol methodSymbol,
-            string dispatchName)
+            string dispatchName,
+            string? readExtractorName,
+            string? writeExtractorName)
         {
             ContractSymbol = contractSymbol;
             MethodSymbol = methodSymbol;
             DispatchName = dispatchName;
+            ReadExtractorName = readExtractorName;
+            WriteExtractorName = writeExtractorName;
         }
 
         public INamedTypeSymbol ContractSymbol { get; }
@@ -406,6 +696,10 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
         public IMethodSymbol MethodSymbol { get; }
 
         public string DispatchName { get; }
+
+        public string? ReadExtractorName { get; }
+
+        public string? WriteExtractorName { get; }
     }
 
     private readonly struct ContractMethodModel
@@ -414,12 +708,16 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
             string dispatchName,
             string methodName,
             ITypeSymbol? inputType,
-            ITypeSymbol returnType)
+            ITypeSymbol returnType,
+            ContractResourceExtractorModel? readExtractor,
+            ContractResourceExtractorModel? writeExtractor)
         {
             DispatchName = dispatchName;
             MethodName = methodName;
             InputType = inputType;
             ReturnType = returnType;
+            ReadExtractor = readExtractor;
+            WriteExtractor = writeExtractor;
         }
 
         public string DispatchName { get; }
@@ -429,5 +727,22 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
         public ITypeSymbol? InputType { get; }
 
         public ITypeSymbol ReturnType { get; }
+
+        public ContractResourceExtractorModel? ReadExtractor { get; }
+
+        public ContractResourceExtractorModel? WriteExtractor { get; }
+    }
+
+    private readonly struct ContractResourceExtractorModel
+    {
+        public ContractResourceExtractorModel(string methodName, bool requiresInput)
+        {
+            MethodName = methodName;
+            RequiresInput = requiresInput;
+        }
+
+        public string MethodName { get; }
+
+        public bool RequiresInput { get; }
     }
 }

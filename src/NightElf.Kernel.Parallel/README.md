@@ -1,3 +1,9 @@
 # NightElf.Kernel.Parallel
 
-Placeholder directory reserved for the parallel execution pipeline.
+Parallel execution primitives for NightElf.
+
+Current scope:
+
+- `ResourceExtractionService` consumes generated resource declarations
+- contracts without generated resource metadata fall back to `ContractResourceSet.Empty`
+- module boundary for future MVCC grouping and conflict detection work

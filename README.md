@@ -122,6 +122,7 @@ Current bootstrap projects:
 - `src/NightElf.Database.Hosting`
 - `src/NightElf.Database.Tsavorite`
 - `src/NightElf.Kernel.Core`
+- `src/NightElf.Kernel.Parallel`
 - `src/NightElf.Kernel.SmartContract`
 - `src/NightElf.Sdk.CSharp`
 - `src/NightElf.Sdk.SourceGen`
@@ -149,6 +150,10 @@ Phase 2 benchmark baseline:
 Phase 3 contract dispatch baseline:
 
 - `docs/005-contract-dispatch-source-generator.md`
+
+Phase 3 resource extraction baseline:
+
+- `docs/006-resource-declaration-source-generator.md`
 
 ## Roadmap
 

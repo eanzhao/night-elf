@@ -9,4 +9,8 @@ public sealed class ContractMethodAttribute : Attribute
     }
 
     public string? Name { get; }
+
+    public string? ReadExtractor { get; set; }
+
+    public string? WriteExtractor { get; set; }
 }

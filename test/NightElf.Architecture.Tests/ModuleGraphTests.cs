@@ -5,6 +5,7 @@ using NightElf.Database.Hosting;
 using NightElf.Database.Redis;
 using NightElf.Database.Tsavorite;
 using NightElf.Kernel.Core;
+using NightElf.Kernel.Parallel;
 using NightElf.Kernel.SmartContract;
 using NightElf.Sdk.CSharp;
 
@@ -43,6 +44,14 @@ public sealed class ModuleGraphTests
         var dependency = GetDependencyAttribute<NightElfSdkCSharpModule>();
 
         Assert.Contains(typeof(NightElfCoreModule), dependency.Dependencies);
+    }
+
+    [Fact]
+    public void KernelParallelModule_Should_Depend_On_KernelSmartContractModule()
+    {
+        var dependency = GetDependencyAttribute<NightElfKernelParallelModule>();
+
+        Assert.Contains(typeof(NightElfKernelSmartContractModule), dependency.Dependencies);
     }
 
     [Fact]
