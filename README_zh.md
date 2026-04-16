@@ -1,20 +1,22 @@
 # NightElf
 
-对 [AElf](https://github.com/AElfProject/AElf) 区块链的架构级重构，用现代 .NET 10 技术栈替换结构性瓶颈，同时保留 AElf 的核心设计理念。
+自主 AI Agent 的可信基础设施，基于现代 .NET 10 区块链底层构建。
 
 [English](README.md)
 
-## 为什么要重构
+## 为什么
 
-AElf 经过 8 年演进（23,000+ 次提交，约 72,000 行 C# 核心代码），已成为功能完整的区块链系统，具备模块化设计、并行执行和跨链能力。但若干结构性问题已深度嵌入：
+传统区块链解决"人与人之间的信任"问题。NightElf 解决一个不同的问题：**信任自主 AI 本身。**
 
-- **全链路假异步** — Redis 操作标记为 `async` 但实际阻塞在 TCP socket 上；`AsyncHelper.RunSync()` 从合约层一路强制同步执行
-- **并行执行被禁用** — 并发反射导致的 `ReflectionTypeLoadException` 使并行资源提取管道失效
-- **合约沙箱不彻底** — 白名单 + IL 补丁缺少真正的内存隔离，合约与节点共享进程
-- **状态合并非原子** — LIB 推进时逐 key 写入，依赖多步状态机做崩溃恢复
-- **上帝类反模式** — `HostSmartContractBridgeContext`（417 行）同时承担状态、密码学、合约、身份、执行等职责
+AI agent 是概率性的。LLM 会幻觉，多 agent 系统会产生不可预测的涌现行为。当多个 agent 跨服务器协作、管理 LLM 算力资源、执行任务、做决策时，你需要一个确定性的执行层来：
 
-NightElf 从架构层面解决这些问题，而非在外围打补丁。
+- 强制每个 agent 对其行为**签名**（密码学问责）
+- 提供**原子性**状态转换（不存在部分更新）
+- 通过智能合约强制执行**不变量**，任何单个 agent 都无法违反
+- 让每一步都**可审计**、**可重放**（从 height 1 开始同步即可重建完整状态）
+- 通过不同的 genesis block 实现**天然租户隔离**
+
+NightElf 的区块链底层重构自 [AElf](https://github.com/AElfProject/AElf)（8 年，23,000+ 次提交），用现代 .NET 10 技术栈替换了结构性瓶颈（假异步、禁用的并行执行、不完整的沙箱），同时保留 AElf 经过验证的协议设计。
 
 ## 技术栈
 
@@ -27,19 +29,30 @@ NightElf 从架构层面解决这些问题，而非在外围打补丁。
 | 协议 | Protocol Buffers | 继承自 AElf — 全部 91 个 proto 定义保留 |
 | 共识 | AEDPoS v2（可插拔） | `IConsensusEngine` 接口；VRF 作为独立模块 |
 
+## 愿景
+
+**AI agent 写合约，而不是调用静态 Skills。** 传统 agent 调用预定义工具。NightElf 的 agent 通过部署合约来创造新的链上能力。合约是可验证的、持久的、原子性的。
+
+**临时条约合约（Ephemeral Treaty Contracts）。** 每次 agent 协作自动创建链上章程，定义角色、预算、权限、挑战窗口和 kill switch。NightElf 是私有 agent 组织的宪法操作系统。
+
+**Orleans 跑 agent，NightElf 做信任层。** Agent 运行时（actor 放置、恢复、消息传递）由 Orleans 等框架处理。NightElf 处理信任层：签名、全局排序、原子执行和审计。
+
 ## 架构
 
 ```
-API 层 (REST / GraphQL / gRPC Gateway)
+AI Agent 层（Orleans / Aevatar / 任意 agent 框架）
+    │ gRPC (IChainSettlement)
     │
-应用层 (TransactionPool / BlockSync / FeeManager / Indexer)
+API 层（gRPC Gateway）
+    │
+应用层（TransactionPool / BlockSync / AgentSession）
     │
 核心引擎
-  ├─ 共识（可插拔：AEDPoS v2，可扩展）
+  ├─ 共识（可插拔：SingleValidator / AEDPoS v2，可扩展）
   ├─ 执行管道（Pre/Execute/Post Plugin，并行 + MVCC，Source Generator 调度）
   └─ 状态管理器（TieredCache → Tsavorite，按合约分区，增量 checkpoint）
     │
-合约沙箱（AssemblyLoadContext 隔离，可卸载，系统合约 NativeAOT）
+合约沙箱（AssemblyLoadContext 隔离，可卸载，支持动态部署）
     │
 网络层（gRPC + System.Net.Quic 双模）
     │
@@ -51,21 +64,25 @@ API 层 (REST / GraphQL / gRPC Gateway)
 
 ## 核心设计决策
 
+### 区块链作为 AI 信任层
+
+AI agent 是概率性的，区块链执行是确定性的。二者结合：签名的 agent 身份、全局排序的操作、原子性的资源分配、完整的审计轨迹。出块的延迟开销（秒级）相对于 LLM 推理延迟可忽略不计。
+
 ### 嵌入式 Tsavorite 替代 Redis
 
-AElf 仅使用 GET/SET/MGET/MSET/DEL/EXISTS 六种操作，不依赖 pub/sub、Lua 脚本、sorted set 等高级特性。嵌入 Tsavorite 消除 TCP 往返（毫秒级 → 微秒/纳秒级），提供真正的异步 I/O，并通过增量 checkpoint 简化状态合并。
+AElf 仅使用 GET/SET/MGET/MSET/DEL/EXISTS。嵌入 Tsavorite 消除 TCP 往返（毫秒级 → 微秒级），提供真正的异步 I/O，增量 checkpoint 简化状态合并。
 
 ### Source Generator 替代运行时反射
 
-运行时反射在并行执行中导致 `ReflectionTypeLoadException`。编译时 Source Generator 生成方法调度器和资源声明，从根源消除问题，实现真正的并行交易处理。
+运行时反射在并行执行中导致 `ReflectionTypeLoadException`。编译时 Source Generator 生成方法调度器和资源声明，支持真正的并行交易处理和动态合约部署。
 
 ### AssemblyLoadContext 沙箱
 
-`isCollectible: true` 使合约卸载后内存彻底回收。按合约做程序集级隔离，防止类型泄漏。基于 `CancellationToken` 的超时机制取代分支计数。系统合约可选 NativeAOT 编译，进一步收紧沙箱边界。
+`isCollectible: true` 使合约卸载后内存彻底回收。按合约做程序集级隔离。对动态合约部署至关重要：AI 生成的合约在隔离沙箱中运行，配合白名单 API、资源限制和 IL 静态分析。
 
 ### Channel 替代事件总线
 
-关键路径（块处理、状态合并）使用 `System.Threading.Channels`，提供显式、可调试、带背压的通信。非关键路径（日志、监控）保留事件总线。
+关键路径（块处理、状态合并）使用 `System.Threading.Channels`，提供显式、可调试、带背压的通信。
 
 ## 项目结构
 
@@ -97,15 +114,9 @@ night-elf/
 └── NightElf.slnx                       # XML 解决方案文件
 ```
 
-## 构建基线
+## 构建
 
-仓库当前以 `NightElf.slnx` 为解决方案入口，并通过 `Directory.Build.props` 统一构建配置。
-
-环境要求：
-
-- .NET SDK `10.0.100` feature band 或更新版本
-
-常用命令：
+环境要求：.NET SDK `10.0.100` feature band 或更新版本。
 
 ```bash
 dotnet restore NightElf.slnx
@@ -114,95 +125,31 @@ dotnet test NightElf.slnx
 ./eng/run-benchmarks.sh
 ```
 
-当前已初始化的核心项目：
-
-- `src/NightElf.Core`
-- `src/NightElf.Database`
-- `src/NightElf.Database.Redis`
-- `src/NightElf.Database.Hosting`
-- `src/NightElf.Database.Tsavorite`
-- `src/NightElf.Kernel.Core`
-- `src/NightElf.Kernel.Parallel`
-- `src/NightElf.Kernel.SmartContract`
-- `src/NightElf.Runtime.CSharp`
-- `src/NightElf.Sdk.CSharp`
-- `src/NightElf.Sdk.SourceGen`
-- `test/NightElf.Architecture.Tests`
-- `test/NightElf.Database.Hosting.Tests`
-- `test/NightElf.Database.Tsavorite.Tests`
-- `test/NightElf.Kernel.Parallel.Tests`
-- `test/NightElf.Kernel.SmartContract.Tests`
-- `test/NightElf.Phase1.Baseline.Tests`
-- `test/NightElf.Runtime.CSharp.Tests`
-- `test/NightElf.Sdk.CSharp.Tests`
-- `test/NightElf.Sdk.SourceGen.Tests`
-
-Phase 1 兼容性测试基线：
-
-- `docs/002-phase1-test-baseline.md`
-- `.github/workflows/phase1-baseline.yml`
-
-Phase 2 async 审计基线：
-
-- `docs/003-runsync-audit.md`
-
-Phase 2 benchmark 基线：
-
-- `docs/004-benchmark-harness.md`
-- `eng/run-benchmarks.sh`
-
-Phase 3 合约调度基线：
-
-- `docs/005-contract-dispatch-source-generator.md`
-
-Phase 3 资源声明基线：
-
-- `docs/006-resource-declaration-source-generator.md`
-
-Phase 3 冲突重试基线：
-
-- `docs/007-conflict-retry-strategy.md`
-
-Phase 3 执行上下文拆分基线：
-
-- `docs/008-contract-execution-context-split.md`
-
-Phase 4 合约沙箱基线：
-
-- `docs/009-contract-sandbox-alc.md`
+设计文档在 `docs/` 目录。底层实现细节见 `docs/001-016`。
 
 ## 实施路线
 
-| 阶段 | 范围 | 周期 |
+底层基础设施（存储、异步、合约执行、沙箱、网络、共识）已基本完成。路线图现在聚焦于将这些组件装配为可运行的节点，并构建 AI agent 集成层。
+
+| 阶段 | 范围 | 目标 |
 |------|------|------|
-| 1 | **存储层** — Tsavorite 嵌入，三 Store 隔离，测试通过 | 2-3 周 |
-| 2 | **异步修复** — 消除假 async，缓存命中走同步快路径，基准测试 | 1-2 周 |
-| 3 | **合约执行** — Source Generator，Context 拆分，并行验证 | 2-4 周 |
-| 4 | **沙箱 + 状态合并** — AssemblyLoadContext，checkpoint 合并，分叉恢复 | 2-3 周 |
-| 5 | **网络 + 共识** — QUIC 传输，`IConsensusEngine` 接口，Channel 通信 | 3-4 周 |
+| 1 | **最小可行链** | 节点启动、出块、交易处理、AgentSession 系统合约 |
+| 2 | **Agent 结算层** | IChainSettlement gRPC 接口、LLM token 计量（verified/self-reported）、多节点 AEDPoS |
+| 3 | **宪法 Agent OS** | 临时条约合约、动态合约生成、Agent 注册表 |
+
+### 底层基础设施（已完成）
+
+- Tsavorite 嵌入式存储，三 Store 隔离（Block/State/Index）
+- 异步管道，缓存命中走同步快路径
+- Source Generator 合约调度和资源声明
+- AssemblyLoadContext 合约沙箱，NativeAOT 评估
+- QUIC P2P 传输选项
+- 可插拔共识引擎抽象（AEDPoS v2 含 VRF）
+- Channel 驱动的区块处理管道
 
 ## 与 AElf 的兼容性
 
-### 保留不变
-
-- 全部 Protobuf 协议定义（91 个 proto 文件）
-- 系统合约逻辑和 ABI
-- 合约 SDK API（`CSharpSmartContract<T>` 基类）
-- 交易/区块数据结构
-- Store key 前缀体系（bb, bh, bs, tx, tr, vs...）
-- 模块化架构（`AElfModule` 基类）
-
-### 变更但兼容
-
-- `IKeyValueDatabase<T>` 接口不变，新增 Tsavorite 实现
-- 模块体系保留，内部实现重构
-- gRPC P2P 保留，新增 QUIC 选项
-
-### 破坏性变更
-
-- `AsyncHelper.RunSync()` 的消除可能影响合约执行的 threading model
-- `AssemblyLoadContext` 沙箱可能影响依赖 AppDomain 行为的合约
-- 状态合并流程变更，已有节点数据需一次性迁移
+NightElf 保留 AElf 的协议层（Protobuf 定义、合约 SDK API、交易/区块结构、Store key 前缀体系、模块化架构），同时替换内部实现。主要变更：移除 `AsyncHelper.RunSync()`、`AssemblyLoadContext` 沙箱替代 IL 补丁、Tsavorite 替代 Redis。
 
 ## 许可证
 
