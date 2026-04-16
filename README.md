@@ -149,6 +149,28 @@ The following foundational work is done:
 - Pluggable consensus engine abstraction (AEDPoS v2 with VRF)
 - Channel-based block processing pipeline
 
+## System Contracts
+
+NightElf is an AI Agent verifiable execution layer, not a general-purpose L1. System contracts are designed around this focus:
+
+| Contract | Responsibility |
+|----------|---------------|
+| **SentinelRegistry** | Consensus governance: sentinel registration/exit, computation credits, reputation, epoch election, parameter governance |
+| **AgentSession** | AI agent session management, token metering (verified/self-reported), settlement |
+
+Genesis contract deployment is handled internally by the Launcher (`GenesisBlockService` + `ContractDeploymentService`).
+
+### AElf System Contracts Not Carried Forward
+
+AElf has 18 system contracts (Parliament, Referendum, Association, Treasury, Profit, Election, CrossChain, MultiToken, TokenConverter, Configuration, Vote, Fees, etc.). NightElf does not migrate these:
+
+- **CrossChain**: AI agent communication is an application-layer concern (HTTP/gRPC/MCP), not a consensus-layer concern. NightElf records and settles; it does not relay. Single-chain parallel execution handles throughput without side chains.
+- **Governance (Parliament/Referendum/Association/Vote)**: `SentinelRegistry.UpdateGovernance` handles parameter governance via admin mode. No on-chain voting infrastructure needed.
+- **Economics (Treasury/Profit/Election/Economic/Fees)**: NightElf's incentive model is computation credits + reputation, managed by SentinelRegistry. No block rewards, no general-purpose fungible tokens, no transaction fees — the "fee" is the agent session's token budget.
+- **Token (MultiToken/TokenConverter/TokenHolder)**: No general token standard. Sentinel staking and agent session budgets are managed by their respective contracts.
+- **RandomNumber**: Handled by the standalone `NightElf.Vrf` module.
+- **Configuration**: Handled by `SentinelRegistry.GovernanceParameters`.
+
 ## Compatibility with AElf
 
 NightElf preserves AElf's protocol layer (Protobuf definitions, contract SDK API, transaction/block structures, store key prefix system, module architecture) while replacing internals. Key changes: `AsyncHelper.RunSync()` removal, `AssemblyLoadContext` sandbox replacing IL patching, Tsavorite replacing Redis.

@@ -147,6 +147,28 @@ dotnet test NightElf.slnx
 - 可插拔共识引擎抽象（AEDPoS v2 含 VRF）
 - Channel 驱动的区块处理管道
 
+## 系统合约
+
+NightElf 定位为 AI Agent 可验证执行层，不是通用 L1 公链。系统合约围绕这一定位精简设计：
+
+| 合约 | 职责 |
+|------|------|
+| **SentinelRegistry** | 共识治理：sentinel 注册/退出、计算积分、声誉、epoch 选举、参数治理 |
+| **AgentSession** | AI agent 会话管理、token metering（verified/self-reported）、结算 |
+
+Genesis 合约部署由 Launcher 内置处理（`GenesisBlockService` + `ContractDeploymentService`），不需要独立的链上合约。
+
+### 不需要的 AElf 系统合约
+
+AElf 有 18 个系统合约（Parliament、Referendum、Association、Treasury、Profit、Election、CrossChain、MultiToken、TokenConverter、Configuration、Vote、Fees 等）。NightElf 不迁移这些合约，原因：
+
+- **跨链（CrossChain）**：AI agent 间通信是应用层问题（HTTP/gRPC/MCP），不是共识层问题。NightElf 的价值是记录和结算，不是传输。单链并行执行已满足吞吐需求，无需侧链模型。
+- **治理（Parliament/Referendum/Association/Vote）**：SentinelRegistry.UpdateGovernance 通过 admin 模式处理参数治理，无需链上投票基础设施。
+- **经济模型（Treasury/Profit/Election/Economic/Fees）**：NightElf 的激励模型是 computation credits + reputation score，由 SentinelRegistry 管理。无区块奖励分配、无通用 fungible token、无交易手续费——"费用"是 agent session 的 token budget。
+- **Token（MultiToken/TokenConverter/TokenHolder）**：NightElf 没有通用 token 标准。sentinel 质押和 agent session token budget 分别由 SentinelRegistry 和 AgentSession 合约管理。
+- **随机数（RandomNumber）**：由独立的 `NightElf.Vrf` 模块处理。
+- **配置（Configuration）**：由 SentinelRegistry.GovernanceParameters 处理。
+
 ## 与 AElf 的兼容性
 
 NightElf 保留 AElf 的协议层（Protobuf 定义、合约 SDK API、交易/区块结构、Store key 前缀体系、模块化架构），同时替换内部实现。主要变更：移除 `AsyncHelper.RunSync()`、`AssemblyLoadContext` 沙箱替代 IL 补丁、Tsavorite 替代 Redis。
