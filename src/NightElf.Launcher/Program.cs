@@ -33,6 +33,8 @@ public partial class Program
 
         app.MapNightElfWebApp();
         app.MapGrpcHealthChecksService();
+        app.MapGet("/health", static () => Results.Ok(new { status = "healthy" }))
+            .ExcludeFromDescription();
         _ = app.Services.GetRequiredService<ChainSettlementEventBroker>();
 
         app.Logger.LogInformation(
