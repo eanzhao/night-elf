@@ -28,8 +28,13 @@ public static class LauncherServiceCollectionExtensions
         services.AddSingleton<INonCriticalEventBus, InMemoryNonCriticalEventBus>();
         services.AddSingleton<IBlockSyncNotifier, LoggingBlockSyncNotifier>();
 
-        services.AddVrfProvider(configuration);
-        services.AddConsensusEngine(configuration);
+        var consensusOptions = ConsensusEngineOptions.FromConfiguration(configuration);
+        if (consensusOptions.ResolveEngineKind() == ConsensusEngineKind.Aedpos)
+        {
+            services.AddVrfProvider(configuration);
+        }
+
+        services.AddConsensusEngine(consensusOptions);
         services.AddNetworkTransport(configuration);
 
         services.AddSingleton<NightElfNodeStorage>();

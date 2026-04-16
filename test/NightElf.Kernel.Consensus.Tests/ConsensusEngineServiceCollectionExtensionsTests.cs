@@ -27,6 +27,30 @@ public sealed class ConsensusEngineServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddConsensusEngine_Should_Register_SingleValidator_Without_Vrf()
+    {
+        var services = new ServiceCollection();
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["NightElf:Consensus:Engine"] = "SingleValidator",
+            ["NightElf:Consensus:SingleValidator:ValidatorAddress"] = "solo-node",
+            ["NightElf:Consensus:SingleValidator:BlockInterval"] = "00:00:02"
+        });
+
+        services.AddConsensusEngine(configuration);
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var options = serviceProvider.GetRequiredService<ConsensusEngineOptions>();
+        var engine = serviceProvider.GetRequiredService<IConsensusEngine>();
+
+        Assert.Equal(ConsensusEngineKind.SingleValidator, options.ResolveEngineKind());
+        Assert.Equal(["solo-node"], options.GetValidatorAddresses());
+        Assert.Equal(TimeSpan.FromSeconds(2), options.GetBlockInterval());
+        Assert.IsType<SingleValidatorConsensusEngine>(engine);
+        Assert.Null(serviceProvider.GetService<IVrfProvider>());
+    }
+
+    [Fact]
     public void AddConsensusEngine_Should_Use_Configured_Aedpos_Validators()
     {
         var services = new ServiceCollection();
@@ -49,6 +73,20 @@ public sealed class ConsensusEngineServiceCollectionExtensionsTests
         Assert.Equal(["miner-1", "miner-2", "miner-3"], options.Aedpos.Validators);
         Assert.Equal(5, options.Aedpos.BlocksPerRound);
         Assert.Equal(11, options.Aedpos.IrreversibleBlockDistance);
+    }
+
+    [Fact]
+    public void AddConsensusEngine_Should_Fail_When_Aedpos_Is_Selected_Without_A_Vrf_Provider()
+    {
+        var services = new ServiceCollection();
+        var options = new ConsensusEngineOptions();
+
+        services.AddConsensusEngine(options);
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var exception = Assert.Throws<InvalidOperationException>(() => serviceProvider.GetRequiredService<IConsensusEngine>());
+
+        Assert.Contains("IVrfProvider must be registered when using the Aedpos consensus engine.", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

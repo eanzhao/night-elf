@@ -15,45 +15,7 @@ public static class ConsensusEngineServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var section = configuration.GetSection(ConsensusEngineOptions.SectionName);
-        var aedposSection = section.GetSection("Aedpos");
-        var aedposOptions = new AedposConsensusOptions();
-
-        var configuredValidators = aedposSection
-            .GetSection(nameof(AedposConsensusOptions.Validators))
-            .GetChildren()
-            .Select(static child => child.Value)
-            .Where(static value => !string.IsNullOrWhiteSpace(value))
-            .Cast<string>()
-            .ToList();
-
-        if (configuredValidators.Count > 0)
-        {
-            aedposOptions.Validators = configuredValidators;
-        }
-
-        if (TimeSpan.TryParse(aedposSection[nameof(AedposConsensusOptions.BlockInterval)], out var blockInterval))
-        {
-            aedposOptions.BlockInterval = blockInterval;
-        }
-
-        if (int.TryParse(aedposSection[nameof(AedposConsensusOptions.BlocksPerRound)], out var blocksPerRound))
-        {
-            aedposOptions.BlocksPerRound = blocksPerRound;
-        }
-
-        if (int.TryParse(aedposSection[nameof(AedposConsensusOptions.IrreversibleBlockDistance)], out var irreversibleBlockDistance))
-        {
-            aedposOptions.IrreversibleBlockDistance = irreversibleBlockDistance;
-        }
-
-        var options = new ConsensusEngineOptions
-        {
-            Engine = section[nameof(ConsensusEngineOptions.Engine)] ?? nameof(ConsensusEngineKind.Aedpos),
-            Aedpos = aedposOptions
-        };
-
-        return services.AddConsensusEngine(options);
+        return services.AddConsensusEngine(ConsensusEngineOptions.FromConfiguration(configuration));
     }
 
     public static IServiceCollection AddConsensusEngine(
@@ -68,18 +30,22 @@ public static class ConsensusEngineServiceCollectionExtensions
         services.TryAddSingleton(options);
         services.TryAddSingleton<IConsensusEngine>(serviceProvider => CreateConsensusEngine(
             serviceProvider.GetRequiredService<ConsensusEngineOptions>(),
-            serviceProvider.GetRequiredService<IVrfProvider>()));
+            serviceProvider.GetService<IVrfProvider>()));
 
         return services;
     }
 
     private static IConsensusEngine CreateConsensusEngine(
         ConsensusEngineOptions options,
-        IVrfProvider vrfProvider)
+        IVrfProvider? vrfProvider)
     {
         return options.ResolveEngineKind() switch
         {
-            ConsensusEngineKind.Aedpos => new AedposConsensusEngine(options.Aedpos, vrfProvider),
+            ConsensusEngineKind.Aedpos => new AedposConsensusEngine(
+                options.Aedpos,
+                vrfProvider ?? throw new InvalidOperationException(
+                    "IVrfProvider must be registered when using the Aedpos consensus engine.")),
+            ConsensusEngineKind.SingleValidator => new SingleValidatorConsensusEngine(options.SingleValidator),
             _ => throw new InvalidOperationException($"Unsupported consensus engine '{options.Engine}'.")
         };
     }

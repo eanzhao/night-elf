@@ -110,7 +110,7 @@ public sealed class NodeRuntimeHostedService : BackgroundService
 
                 try
                 {
-                    await Task.Delay(_consensusOptions.Aedpos.BlockInterval, stoppingToken).ConfigureAwait(false);
+                    await Task.Delay(_consensusOptions.GetBlockInterval(), stoppingToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -130,15 +130,14 @@ public sealed class NodeRuntimeHostedService : BackgroundService
                            ?? throw new InvalidOperationException("Genesis must exist before block production can start.");
 
         var nextHeight = previousBlock.Height + 1;
-        var roundNumber = ((nextHeight - 1) % _consensusOptions.Aedpos.BlocksPerRound) + 1;
-        var termNumber = ((nextHeight - 1) / _consensusOptions.Aedpos.BlocksPerRound) + 1;
+        var (roundNumber, termNumber) = _consensusOptions.ResolveRoundAndTerm(nextHeight);
         var proposal = await _consensusEngine.ProposeBlockAsync(
                 new ConsensusContext
                 {
                     ExpectedHeight = nextHeight,
                     PreviousBlock = previousBlock,
                     LastIrreversibleBlock = await ResolveLastIrreversibleBlockAsync(
-                            Math.Max(1, nextHeight - _consensusOptions.Aedpos.IrreversibleBlockDistance))
+                            _consensusOptions.ResolveLastIrreversibleBlockHeightHint(nextHeight))
                         .ConfigureAwait(false),
                     RoundNumber = roundNumber,
                     TermNumber = termNumber,

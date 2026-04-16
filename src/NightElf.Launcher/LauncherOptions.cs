@@ -243,7 +243,7 @@ public sealed class GenesisConfig
 
         return Validators.Count > 0
             ? Validators
-            : consensusOptions.Aedpos.Validators;
+            : consensusOptions.GetValidatorAddresses();
     }
 
     public void ValidateAgainstConsensus(ConsensusEngineOptions consensusOptions)
@@ -251,7 +251,7 @@ public sealed class GenesisConfig
         Validate();
         ArgumentNullException.ThrowIfNull(consensusOptions);
 
-        var consensusValidators = consensusOptions.Aedpos.Validators;
+        var consensusValidators = consensusOptions.GetValidatorAddresses();
         if (Validators.Count == 0)
         {
             return;
