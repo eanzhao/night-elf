@@ -1,8 +1,28 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);CS8981</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.27.2" />
+    <PackageReference Include="Grpc.Tools" Version="2.46.3" PrivateAssets="All" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\NightElf.Core\NightElf.Core.csproj" />
     <ProjectReference Include="..\NightElf.Database\NightElf.Database.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="..\..\protobuf\aelf\core.proto"
+              ProtoRoot="..\..\protobuf"
+              GrpcServices="None"
+              Link="Protobuf\aelf\core.proto" />
+    <Protobuf Include="..\..\protobuf\kernel.proto"
+              ProtoRoot="..\..\protobuf"
+              GrpcServices="None"
+              Link="Protobuf\kernel.proto" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package aelf;
+
+option csharp_namespace = "NightElf.Kernel.Core.Protobuf";
+
+message Transaction {
+    Address from = 1;
+    Address to = 2;
+    int64 ref_block_number = 3;
+    bytes ref_block_prefix = 4;
+    string method_name = 5;
+    bytes params = 6;
+    bytes signature = 10000;
+}
+
+message Address {
+    bytes value = 1;
+}
+
+message Hash {
+    bytes value = 1;
+}
+
+message MerklePath {
+    repeated MerklePathNode merkle_path_nodes = 1;
+}
+
+message MerklePathNode {
+    Hash hash = 1;
+    bool is_left_child_node = 2;
+}
