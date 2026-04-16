@@ -8,6 +8,7 @@ using NightElf.Kernel.Consensus;
 using NightElf.Kernel.Core;
 using NightElf.Kernel.Parallel;
 using NightElf.Kernel.SmartContract;
+using NightElf.OS.Network;
 using NightElf.Runtime.CSharp;
 using NightElf.Sdk.CSharp;
 using NightElf.Vrf;
@@ -56,6 +57,14 @@ public sealed class ModuleGraphTests
 
         Assert.Contains(typeof(NightElfKernelCoreModule), dependency.Dependencies);
         Assert.Contains(typeof(NightElfSdkCSharpModule), dependency.Dependencies);
+    }
+
+    [Fact]
+    public void OSNetworkModule_Should_Depend_On_CoreModule()
+    {
+        var dependency = GetDependencyAttribute<NightElfOSNetworkModule>();
+
+        Assert.Contains(typeof(NightElfCoreModule), dependency.Dependencies);
     }
 
     [Fact]

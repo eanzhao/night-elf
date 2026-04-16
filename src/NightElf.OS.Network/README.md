@@ -1,3 +1,3 @@
 # NightElf.OS.Network
 
-Placeholder directory reserved for the P2P networking stack.
+P2P networking module with explicit transport routing. RPC stays on the gRPC-compatible path, while block sync and transaction broadcast can opt into QUIC.
