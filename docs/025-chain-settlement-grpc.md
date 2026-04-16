@@ -37,7 +37,7 @@ issue [#31](https://github.com/eanzhao/night-elf/issues/31) 为 AI agent 和 Nig
   - 校验 deployer Ed25519 签名
   - 在 `ContractSandbox` 中验证 assembly 可加载且包含唯一的 `CSharpSmartContract`
   - 把 assembly bytes、metadata、code-hash 索引和 deploy transaction 映射写入链状态
-- `SubscribeEvents` 通过 `ChainSettlementEventBroker` 从节点事件总线读取 `BlockAccepted / TransactionResult / ContractDeployed` 三类事件
+- `SubscribeEvents` 通过 `ChainSettlementEventBroker` 从节点事件总线读取 `BlockAccepted / TransactionResult / ContractDeployed / TokenMetered` 四类事件
 
 ## 部署状态模型
 
@@ -55,11 +55,12 @@ metadata 结构见 [ChainSettlementContractDeploymentRecord](/Users/eanzhao/nigh
 
 ## 事件流
 
-`SubscribeEvents` 当前支持三类事件：
+`SubscribeEvents` 当前支持四类事件：
 
 - `CHAIN_EVENT_TYPE_BLOCK_ACCEPTED`
 - `CHAIN_EVENT_TYPE_TRANSACTION_RESULT`
 - `CHAIN_EVENT_TYPE_CONTRACT_DEPLOYED`
+- `CHAIN_EVENT_TYPE_TOKEN_METERED`
 
 为了避免 gRPC stream 建连时序导致首批事件丢失，`ChainSettlementEventBroker` 会保留最近一段内存缓冲，并在新订阅建立时先回放 snapshot，再继续转发 live events。
 

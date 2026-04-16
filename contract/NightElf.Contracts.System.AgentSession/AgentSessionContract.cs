@@ -72,6 +72,7 @@ public sealed partial class AgentSessionContract : CSharpSmartContract
         EnsureHash(input.StepContentHash, nameof(input.StepContentHash));
         ArgumentOutOfRangeException.ThrowIfNegative(input.InputTokens);
         ArgumentOutOfRangeException.ThrowIfNegative(input.OutputTokens);
+        var meteringSource = input.MeteringSource.EnsureSpecified();
 
         var sessionKey = CreateSessionKey(input.SessionId);
         var sessionState = LoadSession(sessionKey, input.SessionId);
@@ -89,6 +90,10 @@ public sealed partial class AgentSessionContract : CSharpSmartContract
 
         sessionState.InputTokensConsumed = checked(sessionState.InputTokensConsumed + input.InputTokens);
         sessionState.OutputTokensConsumed = checked(sessionState.OutputTokensConsumed + input.OutputTokens);
+        AccumulateMeteringBySource(sessionState, meteringSource, input.InputTokens, input.OutputTokens);
+
+        var weightedTokens = meteringSource.ApplyConfidenceWeight(delta);
+        sessionState.WeightedTokensConsumed = checked(sessionState.WeightedTokensConsumed + weightedTokens);
         StateContext.SetState(sessionKey, sessionState.ToByteArray());
         StateContext.SetState(
             CreateStepRecordedEventKey(input.SessionId, input.StepContentHash),
@@ -98,7 +103,11 @@ public sealed partial class AgentSessionContract : CSharpSmartContract
                 StepContentHash = input.StepContentHash,
                 InputTokens = input.InputTokens,
                 OutputTokens = input.OutputTokens,
-                TotalTokensConsumed = nextTotalConsumed
+                TotalTokensConsumed = nextTotalConsumed,
+                MeteringSource = meteringSource,
+                ConfidenceWeightBasisPoints = meteringSource.GetConfidenceWeightBasisPoints(),
+                WeightedTokens = weightedTokens,
+                WeightedTokensConsumed = sessionState.WeightedTokensConsumed
             }.ToByteArray());
 
         return Empty.Value;
@@ -131,7 +140,10 @@ public sealed partial class AgentSessionContract : CSharpSmartContract
                 TotalTokensConsumed = totalConsumed,
                 RemainingBudget = sessionState.TokenBudget - totalConsumed,
                 FinalizedBy = ExecutionContext.SenderAddress,
-                BlockHeight = ExecutionContext.BlockHeight
+                BlockHeight = ExecutionContext.BlockHeight,
+                WeightedTokensConsumed = sessionState.WeightedTokensConsumed,
+                VerifiedTokensConsumed = GetSourceTotalTokensConsumed(sessionState, AgentSessionProto.MeteringSource.Verified),
+                SelfReportedTokensConsumed = GetSourceTotalTokensConsumed(sessionState, AgentSessionProto.MeteringSource.SelfReported)
             }.ToByteArray());
 
         return Empty.Value;
@@ -182,6 +194,41 @@ public sealed partial class AgentSessionContract : CSharpSmartContract
             throw new InvalidOperationException(
                 $"Session '{sessionState.SessionId.ToHex()}' has already been finalized.");
         }
+    }
+
+    private static void AccumulateMeteringBySource(
+        AgentSessionProto.SessionState sessionState,
+        AgentSessionProto.MeteringSource meteringSource,
+        long inputTokens,
+        long outputTokens)
+    {
+        switch (meteringSource.EnsureSpecified())
+        {
+            case AgentSessionProto.MeteringSource.Verified:
+                sessionState.VerifiedInputTokensConsumed = checked(sessionState.VerifiedInputTokensConsumed + inputTokens);
+                sessionState.VerifiedOutputTokensConsumed = checked(sessionState.VerifiedOutputTokensConsumed + outputTokens);
+                break;
+            case AgentSessionProto.MeteringSource.SelfReported:
+                sessionState.SelfReportedInputTokensConsumed = checked(sessionState.SelfReportedInputTokensConsumed + inputTokens);
+                sessionState.SelfReportedOutputTokensConsumed = checked(sessionState.SelfReportedOutputTokensConsumed + outputTokens);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(meteringSource), meteringSource, null);
+        }
+    }
+
+    private static long GetSourceTotalTokensConsumed(
+        AgentSessionProto.SessionState sessionState,
+        AgentSessionProto.MeteringSource meteringSource)
+    {
+        return meteringSource.EnsureSpecified() switch
+        {
+            AgentSessionProto.MeteringSource.Verified => checked(
+                sessionState.VerifiedInputTokensConsumed + sessionState.VerifiedOutputTokensConsumed),
+            AgentSessionProto.MeteringSource.SelfReported => checked(
+                sessionState.SelfReportedInputTokensConsumed + sessionState.SelfReportedOutputTokensConsumed),
+            _ => throw new ArgumentOutOfRangeException(nameof(meteringSource), meteringSource, null)
+        };
     }
 
     private static void EnsureAddress(Address? address, string parameterName)

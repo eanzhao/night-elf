@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\contract\NightElf.Contracts.System.AgentSession\NightElf.Contracts.System.AgentSession.csproj" />
     <ProjectReference Include="..\NightElf.Kernel.Core\NightElf.Kernel.Core.csproj" />
     <ProjectReference Include="..\NightElf.Runtime.CSharp\NightElf.Runtime.CSharp.csproj" />
     <ProjectReference Include="..\NightElf.Sdk.CSharp\NightElf.Sdk.CSharp.csproj" />

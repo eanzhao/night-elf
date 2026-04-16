@@ -6,6 +6,12 @@ import "aelf/core.proto";
 
 option csharp_namespace = "NightElf.Contracts.System.AgentSession.Protobuf";
 
+enum MeteringSource {
+    METERING_SOURCE_UNSPECIFIED = 0;
+    METERING_SOURCE_VERIFIED = 1;
+    METERING_SOURCE_SELF_REPORTED = 2;
+}
+
 message OpenSessionInput {
     aelf.Address agent_address = 1;
     int64 token_budget = 2;
@@ -16,6 +22,7 @@ message RecordStepInput {
     aelf.Hash step_content_hash = 2;
     int64 input_tokens = 3;
     int64 output_tokens = 4;
+    MeteringSource metering_source = 5;
 }
 
 message FinalizeSessionInput {
@@ -34,6 +41,11 @@ message SessionState {
     string opened_by = 9;
     string finalized_by = 10;
     int64 finalized_at_block_height = 11;
+    int64 verified_input_tokens_consumed = 12;
+    int64 verified_output_tokens_consumed = 13;
+    int64 self_reported_input_tokens_consumed = 14;
+    int64 self_reported_output_tokens_consumed = 15;
+    int64 weighted_tokens_consumed = 16;
 }
 
 message SessionOpened {
@@ -51,6 +63,10 @@ message StepRecorded {
     int64 input_tokens = 3;
     int64 output_tokens = 4;
     int64 total_tokens_consumed = 5;
+    MeteringSource metering_source = 6;
+    int32 confidence_weight_basis_points = 7;
+    int64 weighted_tokens = 8;
+    int64 weighted_tokens_consumed = 9;
 }
 
 message SessionFinalized {
@@ -59,4 +75,7 @@ message SessionFinalized {
     int64 remaining_budget = 3;
     string finalized_by = 4;
     int64 block_height = 5;
+    int64 weighted_tokens_consumed = 6;
+    int64 verified_tokens_consumed = 7;
+    int64 self_reported_tokens_consumed = 8;
 }

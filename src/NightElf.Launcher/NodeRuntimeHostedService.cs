@@ -5,8 +5,10 @@ using Google.Protobuf;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using NightElf.Contracts.System.AgentSession.Protobuf;
 using NightElf.Kernel.Consensus;
 using NightElf.Kernel.Core;
+using NightElf.Kernel.Core.Protobuf;
 using NightElf.OS.Network;
 using NightElf.WebApp;
 using NightElf.WebApp.Protobuf;
@@ -248,6 +250,12 @@ public sealed class NodeRuntimeHostedService : BackgroundService
                         Payload: transactionResult.ToByteArray(),
                         Message: outcome.Error ?? transactionResult.Status.ToString()))
                 .ConfigureAwait(false);
+
+            await PublishTokenMeteringEventAsync(
+                    outcome,
+                    proposal.Block,
+                    executionResult.Writes)
+                .ConfigureAwait(false);
         }
 
         var lastIrreversibleBlock = await ResolveLastIrreversibleBlockAsync(proposal.LastIrreversibleBlockHeight).ConfigureAwait(false);
@@ -277,6 +285,54 @@ public sealed class NodeRuntimeHostedService : BackgroundService
         return await _blockRepository.GetBlockReferenceByHeightAsync(blockHeight).ConfigureAwait(false);
     }
 
+    private async Task PublishTokenMeteringEventAsync(
+        BlockTransactionExecutionOutcome outcome,
+        BlockReference block,
+        IReadOnlyDictionary<string, byte[]> executionWrites)
+    {
+        ArgumentNullException.ThrowIfNull(outcome);
+        ArgumentNullException.ThrowIfNull(block);
+        ArgumentNullException.ThrowIfNull(executionWrites);
+
+        if (outcome.Status != TransactionResultStatus.Mined ||
+            !string.Equals(outcome.Transaction.MethodName, "RecordStep", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        try
+        {
+            var input = RecordStepInput.Parser.ParseFrom(outcome.Transaction.Params);
+            var stateKey = CreateStepRecordedStateKey(input.SessionId, input.StepContentHash);
+            if (!executionWrites.TryGetValue(stateKey, out var payload))
+            {
+                return;
+            }
+
+            var stepRecorded = StepRecorded.Parser.ParseFrom(payload);
+            await _nonCriticalEventBus.PublishAsync(
+                    new ChainSettlementEventEnvelope(
+                        EventId: $"meter:{outcome.Transaction.GetTransactionId()}:{stepRecorded.StepContentHash.ToHex()}",
+                        EventType: ChainEventType.TokenMetered,
+                        OccurredAtUtc: DateTimeOffset.UtcNow,
+                        BlockHeight: block.Height,
+                        BlockHash: block.Hash,
+                        TransactionId: outcome.Transaction.GetTransactionId(),
+                        ContractAddress: outcome.Transaction.To.ToHex(),
+                        StateKey: stateKey,
+                        Payload: payload,
+                        Message: stepRecorded.MeteringSource.ToString()))
+                .ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Failed to publish token metering event for transaction {TransactionId}.",
+                outcome.Transaction.GetTransactionId());
+        }
+    }
+
     private Dictionary<string, byte[]> CreateStateWrites(
         ConsensusBlockProposal proposal,
         IReadOnlyDictionary<string, byte[]>? executionWrites)
@@ -300,6 +356,13 @@ public sealed class NodeRuntimeHostedService : BackgroundService
         }
 
         return writes;
+    }
+
+    private static string CreateStepRecordedStateKey(Hash sessionId, Hash stepContentHash)
+    {
+        ArgumentNullException.ThrowIfNull(sessionId);
+        ArgumentNullException.ThrowIfNull(stepContentHash);
+        return $"session:{sessionId.ToHex()}:event:step:{stepContentHash.ToHex()}";
     }
 
     private async Task RecoverStateFromLatestCheckpointIfNeededAsync(CancellationToken cancellationToken)

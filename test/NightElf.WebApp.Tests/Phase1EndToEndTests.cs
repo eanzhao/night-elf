@@ -58,7 +58,8 @@ public sealed class Phase1EndToEndTests
                 SessionId = sessionId,
                 StepContentHash = "AA".PadLeft(64, '0').ToProtoHash(),
                 InputTokens = 20,
-                OutputTokens = 15
+                OutputTokens = 15,
+                MeteringSource = MeteringSource.Verified
             }));
         var recordSubmit = await client.SubmitTransactionAsync(recordEnvelope.Transaction).ResponseAsync;
         var recordMined = await harness.WaitForTransactionStatusAsync(recordSubmit.TransactionId, TransactionExecutionStatus.Mined);
@@ -66,6 +67,9 @@ public sealed class Phase1EndToEndTests
 
         Assert.Equal(20, recordedState!.InputTokensConsumed);
         Assert.Equal(15, recordedState.OutputTokensConsumed);
+        Assert.Equal(20, recordedState.VerifiedInputTokensConsumed);
+        Assert.Equal(15, recordedState.VerifiedOutputTokensConsumed);
+        Assert.Equal(35, recordedState.WeightedTokensConsumed);
 
         var overBudgetRef = await harness.WaitForChainHeightAsync(recordMined.BlockHeight);
         var overBudgetEnvelope = NightElfTransactionTestBuilder.CreateSignedTransaction(
@@ -79,7 +83,8 @@ public sealed class Phase1EndToEndTests
                 SessionId = sessionId,
                 StepContentHash = "BB".PadLeft(64, '0').ToProtoHash(),
                 InputTokens = 80,
-                OutputTokens = 20
+                OutputTokens = 20,
+                MeteringSource = MeteringSource.Verified
             }));
         var overBudgetSubmit = await client.SubmitTransactionAsync(overBudgetEnvelope.Transaction).ResponseAsync;
         var overBudgetFailed = await harness.WaitForTransactionStatusAsync(overBudgetSubmit.TransactionId, TransactionExecutionStatus.Failed);
@@ -121,6 +126,7 @@ public sealed class Phase1EndToEndTests
         Assert.True(recoveredState!.IsFinalized);
         Assert.Equal(20, recoveredState.InputTokensConsumed);
         Assert.Equal(15, recoveredState.OutputTokensConsumed);
+        Assert.Equal(35, recoveredState.WeightedTokensConsumed);
         Assert.Equal(finalizeMined.BlockHeight, recoveredFinalizeResult.BlockHeight);
         Assert.Equal(TransactionExecutionStatus.Mined, recoveredFinalizeResult.Status);
     }

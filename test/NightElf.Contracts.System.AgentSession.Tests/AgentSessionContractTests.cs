@@ -116,7 +116,8 @@ public sealed class AgentSessionContractTests
                 SessionId = sessionId,
                 StepContentHash = stepHash,
                 InputTokens = 25,
-                OutputTokens = 15
+                OutputTokens = 15,
+                MeteringSource = MeteringSource.Verified
             }),
             transactionIndex: 4);
 
@@ -125,13 +126,22 @@ public sealed class AgentSessionContractTests
 
         Assert.Equal(25, sessionState.InputTokensConsumed);
         Assert.Equal(15, sessionState.OutputTokensConsumed);
+        Assert.Equal(25, sessionState.VerifiedInputTokensConsumed);
+        Assert.Equal(15, sessionState.VerifiedOutputTokensConsumed);
+        Assert.Equal(0, sessionState.SelfReportedInputTokensConsumed);
+        Assert.Equal(0, sessionState.SelfReportedOutputTokensConsumed);
+        Assert.Equal(40, sessionState.WeightedTokensConsumed);
         Assert.Equal(sessionId.ToHex(), stepEvent.SessionId.ToHex());
         Assert.Equal(stepHash.ToHex(), stepEvent.StepContentHash.ToHex());
         Assert.Equal(40, stepEvent.TotalTokensConsumed);
+        Assert.Equal(MeteringSource.Verified, stepEvent.MeteringSource);
+        Assert.Equal(MeteringSourceExtensions.VerifiedConfidenceWeightBasisPoints, stepEvent.ConfidenceWeightBasisPoints);
+        Assert.Equal(40, stepEvent.WeightedTokens);
+        Assert.Equal(40, stepEvent.WeightedTokensConsumed);
     }
 
     [Fact]
-    public void RecordStep_Should_Reject_NonOwner_And_Budget_Overruns()
+    public void RecordStep_Should_Reject_Unspecified_Source_NonOwner_And_Budget_Overruns()
     {
         using var harness = new ContractHarness();
         var agentAddress = CreateAddress(
@@ -147,6 +157,21 @@ public sealed class AgentSessionContractTests
                 }),
                 transactionIndex: 0));
 
+        var unspecifiedSourceException = Assert.Throws<ArgumentOutOfRangeException>(
+            () => harness.Execute(
+                sender: agentAddress.ToHex(),
+                methodName: "RecordStep",
+                payload: RecordStepInput.Encode(new RecordStepInput
+                {
+                    SessionId = sessionId,
+                    StepContentHash = "AA".PadLeft(64, '0').ToProtoHash(),
+                    InputTokens = 1,
+                    OutputTokens = 1,
+                    MeteringSource = MeteringSource.Unspecified
+                }),
+                transactionIndex: 1));
+        Assert.Contains("specified", unspecifiedSourceException.Message, StringComparison.OrdinalIgnoreCase);
+
         var nonOwnerException = Assert.Throws<InvalidOperationException>(
             () => harness.Execute(
                 sender: "not-owner",
@@ -156,9 +181,10 @@ public sealed class AgentSessionContractTests
                     SessionId = sessionId,
                     StepContentHash = "AB".PadLeft(64, '0').ToProtoHash(),
                     InputTokens = 1,
-                    OutputTokens = 1
+                    OutputTokens = 1,
+                    MeteringSource = MeteringSource.Verified
                 }),
-                transactionIndex: 1));
+                transactionIndex: 2));
         Assert.Contains("not the session owner", nonOwnerException.Message, StringComparison.OrdinalIgnoreCase);
 
         var budgetException = Assert.Throws<InvalidOperationException>(
@@ -170,9 +196,10 @@ public sealed class AgentSessionContractTests
                     SessionId = sessionId,
                     StepContentHash = "CD".PadLeft(64, '0').ToProtoHash(),
                     InputTokens = 15,
-                    OutputTokens = 10
+                    OutputTokens = 10,
+                    MeteringSource = MeteringSource.Verified
                 }),
-                transactionIndex: 2));
+                transactionIndex: 3));
         Assert.Contains("budget", budgetException.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -201,9 +228,22 @@ public sealed class AgentSessionContractTests
                 SessionId = sessionId,
                 StepContentHash = "EF".PadLeft(64, '0').ToProtoHash(),
                 InputTokens = 10,
-                OutputTokens = 5
+                OutputTokens = 5,
+                MeteringSource = MeteringSource.Verified
             }),
             transactionIndex: 6);
+        harness.Execute(
+            sender: agentAddress.ToHex(),
+            methodName: "RecordStep",
+            payload: RecordStepInput.Encode(new RecordStepInput
+            {
+                SessionId = sessionId,
+                StepContentHash = "F0".PadLeft(64, '0').ToProtoHash(),
+                InputTokens = 4,
+                OutputTokens = 6,
+                MeteringSource = MeteringSource.SelfReported
+            }),
+            transactionIndex: 7);
 
         var nonOwnerFinalize = Assert.Throws<InvalidOperationException>(
             () => harness.Execute(
@@ -213,7 +253,7 @@ public sealed class AgentSessionContractTests
                 {
                     SessionId = sessionId
                 }),
-                transactionIndex: 7));
+                transactionIndex: 8));
         Assert.Contains("not the session owner", nonOwnerFinalize.Message, StringComparison.OrdinalIgnoreCase);
 
         harness.Execute(
@@ -223,7 +263,7 @@ public sealed class AgentSessionContractTests
             {
                 SessionId = sessionId
             }),
-            transactionIndex: 8);
+            transactionIndex: 9);
 
         var sessionState = SessionState.Decode(harness.GetState(CreateSessionKey(sessionId)));
         var finalizedEvent = SessionFinalized.Decode(harness.GetState(CreateFinalizedEventKey(sessionId)));
@@ -231,9 +271,14 @@ public sealed class AgentSessionContractTests
         Assert.True(sessionState.IsFinalized);
         Assert.Equal(agentAddress.ToHex(), sessionState.FinalizedBy);
         Assert.Equal(harness.BlockHeight, sessionState.FinalizedAtBlockHeight);
-        Assert.Equal(15, finalizedEvent.TotalTokensConsumed);
-        Assert.Equal(15, finalizedEvent.RemainingBudget);
+        Assert.Equal(25, sessionState.InputTokensConsumed + sessionState.OutputTokensConsumed);
+        Assert.Equal(20, sessionState.WeightedTokensConsumed);
+        Assert.Equal(25, finalizedEvent.TotalTokensConsumed);
+        Assert.Equal(5, finalizedEvent.RemainingBudget);
         Assert.Equal(agentAddress.ToHex(), finalizedEvent.FinalizedBy);
+        Assert.Equal(20, finalizedEvent.WeightedTokensConsumed);
+        Assert.Equal(15, finalizedEvent.VerifiedTokensConsumed);
+        Assert.Equal(10, finalizedEvent.SelfReportedTokensConsumed);
 
         var finalizedException = Assert.Throws<InvalidOperationException>(
             () => harness.Execute(
@@ -244,9 +289,10 @@ public sealed class AgentSessionContractTests
                     SessionId = sessionId,
                     StepContentHash = "12".PadLeft(64, '0').ToProtoHash(),
                     InputTokens = 1,
-                    OutputTokens = 1
+                    OutputTokens = 1,
+                    MeteringSource = MeteringSource.Verified
                 }),
-                transactionIndex: 9));
+                transactionIndex: 10));
         Assert.Contains("finalized", finalizedException.Message, StringComparison.OrdinalIgnoreCase);
     }
 
