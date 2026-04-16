@@ -48,10 +48,10 @@ Launcher 会先检测 `chain:best` 是否存在：
 - 存在：认为链已经初始化，跳过 genesis 生成
 - 不存在：用当前共识配置生成一个最小 genesis block，并写入 block/index/state/checkpoint
 
-这次的 genesis 还是最小版本：
-- validator 集直接来自 launcher/consensus 配置
-- `AgentSession` 只写入占位 deployed marker
-- 真实系统合约部署、配置文件驱动和链身份扩展仍留给 [#28](https://github.com/eanzhao/night-elf/issues/28)
+当前 genesis 语义：
+- validator 集来自 launcher/consensus 配置，支持通过独立 JSON genesis 文件提供
+- `AgentSession` 等系统合约会生成真实 deployment transaction，并把结构化部署记录写入 state
+- genesis block hash 由链配置和部署清单共同决定，是链身份的根
 
 ### gRPC API
 

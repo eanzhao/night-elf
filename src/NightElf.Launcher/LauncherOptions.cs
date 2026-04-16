@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 using Microsoft.Extensions.Configuration;
 
 using NightElf.Kernel.Consensus;
@@ -176,6 +178,8 @@ public sealed class LauncherNetworkOptions
 
 public sealed class GenesisConfig
 {
+    public string? ConfigFilePath { get; set; }
+
     public int ChainId { get; set; } = 9992731;
 
     public DateTimeOffset? TimestampUtc { get; set; }
@@ -187,6 +191,12 @@ public sealed class GenesisConfig
     public static GenesisConfig FromConfiguration(IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+
+        var configFilePath = configuration[nameof(ConfigFilePath)];
+        var genesisConfig = string.IsNullOrWhiteSpace(configFilePath)
+            ? new GenesisConfig()
+            : LoadFromFile(configFilePath);
+        genesisConfig.ConfigFilePath = configFilePath;
 
         var validators = configuration
             .GetSection(nameof(Validators))
@@ -204,19 +214,31 @@ public sealed class GenesisConfig
             .Cast<string>()
             .ToList();
 
-        DateTimeOffset? timestampUtc = null;
         if (DateTimeOffset.TryParse(configuration[nameof(TimestampUtc)], out var parsedTimestamp))
         {
-            timestampUtc = parsedTimestamp;
+            genesisConfig.TimestampUtc = parsedTimestamp;
         }
 
-        return new GenesisConfig
+        if (int.TryParse(configuration[nameof(ChainId)], out var chainId))
         {
-            ChainId = int.TryParse(configuration[nameof(ChainId)], out var chainId) ? chainId : 9992731,
-            TimestampUtc = timestampUtc,
-            Validators = validators,
-            SystemContracts = systemContracts.Count == 0 ? ["AgentSession"] : systemContracts
-        };
+            genesisConfig.ChainId = chainId;
+        }
+
+        if (validators.Count > 0)
+        {
+            genesisConfig.Validators = validators;
+        }
+
+        if (systemContracts.Count > 0)
+        {
+            genesisConfig.SystemContracts = systemContracts;
+        }
+        else if (genesisConfig.SystemContracts.Count == 0)
+        {
+            genesisConfig.SystemContracts = ["AgentSession"];
+        }
+
+        return genesisConfig;
     }
 
     public void Validate()
@@ -261,6 +283,47 @@ public sealed class GenesisConfig
         {
             throw new InvalidOperationException(
                 "NightElf launcher genesis validators must match the configured consensus validator set.");
+        }
+    }
+
+    public GenesisConfigSnapshot ToSnapshot()
+    {
+        Validate();
+
+        return new GenesisConfigSnapshot
+        {
+            ChainId = ChainId,
+            TimestampUtc = TimestampUtc,
+            Validators = [.. Validators],
+            SystemContracts = [.. SystemContracts]
+        };
+    }
+
+    private static GenesisConfig LoadFromFile(string configFilePath)
+    {
+        var fullPath = Path.GetFullPath(configFilePath);
+        if (!File.Exists(fullPath))
+        {
+            throw new InvalidOperationException(
+                $"Genesis config file '{configFilePath}' does not exist. Resolved path: '{fullPath}'.");
+        }
+
+        try
+        {
+            var payload = File.ReadAllBytes(fullPath);
+            var config = JsonSerializer.Deserialize(
+                payload,
+                GenesisJsonSerializerContext.Default.GenesisConfig);
+            config ??= new GenesisConfig();
+            config.Validators ??= [];
+            config.SystemContracts ??= ["AgentSession"];
+            return config;
+        }
+        catch (Exception exception) when (exception is JsonException or NotSupportedException)
+        {
+            throw new InvalidOperationException(
+                $"Failed to parse genesis config file '{fullPath}': {exception.Message}",
+                exception);
         }
     }
 }

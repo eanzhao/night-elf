@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
@@ -65,7 +66,8 @@ internal static class BlockModelFactory
     {
         ArgumentNullException.ThrowIfNull(genesisConfig);
 
-        return Encoding.UTF8.GetBytes(
-            $"{genesisConfig.ChainId}|validators={string.Join(",", genesisConfig.Validators)}|contracts={string.Join(",", genesisConfig.SystemContracts)}");
+        return JsonSerializer.SerializeToUtf8Bytes(
+            genesisConfig.ToSnapshot(),
+            GenesisJsonSerializerContext.Default.GenesisConfigSnapshot);
     }
 }
