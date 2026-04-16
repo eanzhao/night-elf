@@ -22,6 +22,8 @@ public sealed class NodeRuntimeHostedService : BackgroundService
     private readonly ConsensusEngineOptions _consensusOptions;
     private readonly IBlockRepository _blockRepository;
     private readonly IChainStateStore _chainStateStore;
+    private readonly ITransactionPool _transactionPool;
+    private readonly TransactionPoolOptions _transactionPoolOptions;
     private readonly IBlockProcessingPipeline _blockProcessingPipeline;
     private readonly INetworkTransportCoordinator _networkTransportCoordinator;
     private readonly INonCriticalEventBus _nonCriticalEventBus;
@@ -41,6 +43,8 @@ public sealed class NodeRuntimeHostedService : BackgroundService
         ConsensusEngineOptions consensusOptions,
         IBlockRepository blockRepository,
         IChainStateStore chainStateStore,
+        ITransactionPool transactionPool,
+        TransactionPoolOptions transactionPoolOptions,
         IBlockProcessingPipeline blockProcessingPipeline,
         INetworkTransportCoordinator networkTransportCoordinator,
         INonCriticalEventBus nonCriticalEventBus)
@@ -55,6 +59,8 @@ public sealed class NodeRuntimeHostedService : BackgroundService
         _consensusOptions = consensusOptions ?? throw new ArgumentNullException(nameof(consensusOptions));
         _blockRepository = blockRepository ?? throw new ArgumentNullException(nameof(blockRepository));
         _chainStateStore = chainStateStore ?? throw new ArgumentNullException(nameof(chainStateStore));
+        _transactionPool = transactionPool ?? throw new ArgumentNullException(nameof(transactionPool));
+        _transactionPoolOptions = transactionPoolOptions ?? throw new ArgumentNullException(nameof(transactionPoolOptions));
         _blockProcessingPipeline = blockProcessingPipeline ?? throw new ArgumentNullException(nameof(blockProcessingPipeline));
         _networkTransportCoordinator = networkTransportCoordinator ?? throw new ArgumentNullException(nameof(networkTransportCoordinator));
         _nonCriticalEventBus = nonCriticalEventBus ?? throw new ArgumentNullException(nameof(nonCriticalEventBus));
@@ -131,6 +137,9 @@ public sealed class NodeRuntimeHostedService : BackgroundService
 
         var nextHeight = previousBlock.Height + 1;
         var (roundNumber, termNumber) = _consensusOptions.ResolveRoundAndTerm(nextHeight);
+        var transactions = await _transactionPool
+            .TakeBatchAsync(_transactionPoolOptions.DefaultBatchSize)
+            .ConfigureAwait(false);
         var proposal = await _consensusEngine.ProposeBlockAsync(
                 new ConsensusContext
                 {
@@ -161,7 +170,7 @@ public sealed class NodeRuntimeHostedService : BackgroundService
                 $"Consensus validation failed for block {proposal.Block.Height}:{proposal.Block.Hash}: {validation.ErrorCode} {validation.ErrorMessage}");
         }
 
-        var block = BlockModelFactory.CreateBlock(proposal, _launcherOptions.Genesis.ChainId);
+        var block = BlockModelFactory.CreateBlock(proposal, _launcherOptions.Genesis.ChainId, transactions);
         await _blockRepository.StoreAsync(proposal.Block, block).ConfigureAwait(false);
 
         var processingRequest = new BlockProcessingRequest
@@ -254,10 +263,12 @@ public sealed class NodeRuntimeHostedService : BackgroundService
     private void LogStorageInitialization()
     {
         _logger.LogInformation(
-            "Initialized Tsavorite stores. block={BlockDataPath} state={StateDataPath} index={IndexDataPath}",
+            "Initialized Tsavorite stores. block={BlockDataPath} state={StateDataPath} index={IndexDataPath} txPoolCapacity={TransactionPoolCapacity} txBatchSize={TransactionPoolBatchSize}",
             _nodeStorage.BlockDatabase.DataPath,
             _nodeStorage.StateDatabase.DataPath,
-            _nodeStorage.IndexDatabase.DataPath);
+            _nodeStorage.IndexDatabase.DataPath,
+            _transactionPoolOptions.Capacity,
+            _transactionPoolOptions.DefaultBatchSize);
     }
 
     private async Task ShutdownAsync()

@@ -61,6 +61,10 @@ public sealed class ChannelBlockProcessingPipelineTests
             Deletes = [ChainStateRecoveryHarness.SecondaryIndexKey]
         });
         var result11 = await ticket11.Completion;
+        await WaitForConditionAsync(
+            static telemetryEvents => telemetryEvents.Count == 4,
+            telemetry,
+            TimeSpan.FromSeconds(5));
 
         await harness.AssertConsistentSnapshotAsync(
             block11,
@@ -218,6 +222,23 @@ public sealed class ChannelBlockProcessingPipelineTests
     private static byte[] Encode(string value)
     {
         return TextEncoding.GetBytes(value);
+    }
+
+    private static async Task WaitForConditionAsync<TState>(
+        Func<TState, bool> predicate,
+        TState state,
+        TimeSpan timeout)
+    {
+        var startedAt = DateTime.UtcNow;
+        while (!predicate(state))
+        {
+            if (DateTime.UtcNow - startedAt > timeout)
+            {
+                throw new TimeoutException("Timed out while waiting for the expected test condition.");
+            }
+
+            await Task.Delay(20);
+        }
     }
 
     private sealed class RecordingBlockSyncNotifier : IBlockSyncNotifier

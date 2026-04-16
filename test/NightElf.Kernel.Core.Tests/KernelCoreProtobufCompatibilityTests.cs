@@ -96,6 +96,28 @@ public sealed class KernelCoreProtobufCompatibilityTests
         Assert.Equal("0C0D", roundTrip.MerklePathNodes[1].Hash.ToHex());
     }
 
+    [Fact]
+    public void TransactionExtensions_Should_Compute_Id_And_RefBlockPrefix()
+    {
+        var transaction = new Transaction
+        {
+            From = CreateAddress(Enumerable.Repeat((byte)0x01, TransactionExtensions.Ed25519PublicKeyLength).ToArray()),
+            To = CreateAddress(Enumerable.Repeat((byte)0x02, TransactionExtensions.Ed25519PublicKeyLength).ToArray()),
+            RefBlockNumber = 12,
+            RefBlockPrefix = "AABBCCDDEEFF0011".GetRefBlockPrefix(),
+            MethodName = "Transfer",
+            Params = ByteString.CopyFromUtf8("payload"),
+            Signature = ByteString.CopyFrom(Enumerable.Repeat((byte)0x03, TransactionExtensions.Ed25519SignatureLength).ToArray())
+        };
+
+        var transactionId = transaction.GetTransactionId();
+        var transactionIdHash = transaction.GetTransactionIdHash();
+
+        Assert.Equal(64, transactionId.Length);
+        Assert.Equal(transactionId, transactionIdHash.ToHex());
+        Assert.Equal([0xAA, 0xBB, 0xCC, 0xDD], transaction.RefBlockPrefix.ToByteArray());
+    }
+
     private static Address CreateAddress(params byte[] value)
     {
         return new Address

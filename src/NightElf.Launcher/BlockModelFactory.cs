@@ -13,7 +13,8 @@ internal static class BlockModelFactory
 {
     public static Block CreateBlock(
         ConsensusBlockProposal proposal,
-        int chainId)
+        int chainId,
+        IReadOnlyList<Transaction>? transactions = null)
     {
         ArgumentNullException.ThrowIfNull(proposal);
 
@@ -41,11 +42,23 @@ internal static class BlockModelFactory
         header.ExtraData["term"] = ByteString.CopyFromUtf8(proposal.TermNumber.ToString());
         header.ExtraData["round"] = ByteString.CopyFromUtf8(proposal.RoundNumber.ToString());
 
-        return new Block
+        var block = new Block
         {
             Header = header,
             Body = new BlockBody()
         };
+
+        if (transactions is not null)
+        {
+            foreach (var transaction in transactions)
+            {
+                block.Body.TransactionIds.Add(transaction.GetTransactionIdHash());
+            }
+
+            header.ExtraData["tx_count"] = ByteString.CopyFromUtf8(block.Body.TransactionIds.Count.ToString());
+        }
+
+        return block;
     }
 
     public static byte[] CreateGenesisConfigPayload(GenesisConfig genesisConfig)
