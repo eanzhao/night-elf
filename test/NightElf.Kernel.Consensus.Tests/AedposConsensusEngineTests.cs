@@ -1,6 +1,7 @@
 using System.Text;
 
 using NightElf.Kernel.Core;
+using NightElf.Vrf;
 
 namespace NightElf.Kernel.Consensus.Tests;
 
@@ -31,6 +32,9 @@ public sealed class AedposConsensusEngineTests
         Assert.Equal(2, proposal.RoundNumber);
         Assert.Equal(3, proposal.TermNumber);
         Assert.Equal(5, proposal.LastIrreversibleBlockHeight);
+        Assert.Equal(Encoding.UTF8.GetBytes("seed-8"), proposal.RandomSeed);
+        Assert.NotEmpty(proposal.Randomness);
+        Assert.NotEmpty(proposal.VrfProof);
         Assert.Equal(proposal.Block.Hash, repeated.Block.Hash);
         Assert.StartsWith("aedpos|proposer=validator-b", Encoding.UTF8.GetString(proposal.ConsensusData), StringComparison.Ordinal);
     }
@@ -167,6 +171,44 @@ public sealed class AedposConsensusEngineTests
         Assert.Equal(["validator-c", "validator-a", "validator-b"], validators.Select(static item => item.Address).ToArray());
     }
 
+    [Fact]
+    public async Task ProposeAndValidate_Should_Use_The_Injected_VrfProvider()
+    {
+        var vrfProvider = new RecordingVrfProvider();
+        var engine = new AedposConsensusEngine(
+            new AedposConsensusOptions
+            {
+                Validators = ["validator-a", "validator-b", "validator-c"]
+            },
+            vrfProvider);
+        var context = new ConsensusContext
+        {
+            ExpectedHeight = 13,
+            PreviousBlock = new BlockReference(12, "prev-012"),
+            RoundNumber = 1,
+            TermNumber = 1,
+            ProposedAtUtc = new DateTimeOffset(2026, 4, 16, 12, 1, 0, TimeSpan.Zero),
+            RandomSeed = Encoding.UTF8.GetBytes("seed-13")
+        };
+
+        var proposal = await engine.ProposeBlockAsync(context);
+        var validation = await engine.ValidateBlockAsync(
+            proposal,
+            new ConsensusValidationContext
+            {
+                ExpectedHeight = 13,
+                PreviousBlock = new BlockReference(12, "prev-012")
+            });
+
+        Assert.True(validation.IsValid);
+        Assert.Equal(1, vrfProvider.EvaluateCallCount);
+        Assert.Equal(1, vrfProvider.VerifyCallCount);
+        Assert.Equal("validator-a", vrfProvider.LastInput!.PublicKey);
+        Assert.Equal("aedpos:13:1:1", vrfProvider.LastInput.Domain);
+        Assert.Equal("proof:validator-a:aedpos:13:1:1:seed-13", Encoding.UTF8.GetString(proposal.VrfProof));
+        Assert.Equal("random:validator-a:aedpos:13:1:1:seed-13", Encoding.UTF8.GetString(proposal.Randomness));
+    }
+
     private static AedposConsensusEngine CreateEngine()
     {
         return new AedposConsensusEngine(new AedposConsensusOptions
@@ -175,5 +217,49 @@ public sealed class AedposConsensusEngineTests
             BlocksPerRound = 3,
             IrreversibleBlockDistance = 5
         });
+    }
+
+    private sealed class RecordingVrfProvider : IVrfProvider
+    {
+        public int EvaluateCallCount { get; private set; }
+
+        public int VerifyCallCount { get; private set; }
+
+        public VrfInput? LastInput { get; private set; }
+
+        public string Algorithm => "Recording";
+
+        public Task<VrfEvaluation> EvaluateAsync(VrfInput input, CancellationToken cancellationToken = default)
+        {
+            EvaluateCallCount++;
+            LastInput = new VrfInput
+            {
+                PublicKey = input.PublicKey,
+                Domain = input.Domain,
+                Seed = input.Seed.ToArray()
+            };
+
+            return Task.FromResult(CreateEvaluation(input));
+        }
+
+        public Task<bool> VerifyAsync(VrfVerificationContext context, CancellationToken cancellationToken = default)
+        {
+            VerifyCallCount++;
+            var evaluation = CreateEvaluation(context.Input);
+
+            return Task.FromResult(
+                evaluation.Proof.SequenceEqual(context.Proof) &&
+                evaluation.Randomness.SequenceEqual(context.Randomness));
+        }
+
+        private static VrfEvaluation CreateEvaluation(VrfInput input)
+        {
+            var suffix = $"{input.PublicKey}:{input.Domain}:{Encoding.UTF8.GetString(input.Seed)}";
+            return new VrfEvaluation
+            {
+                Proof = Encoding.UTF8.GetBytes($"proof:{suffix}"),
+                Randomness = Encoding.UTF8.GetBytes($"random:{suffix}")
+            };
+        }
     }
 }

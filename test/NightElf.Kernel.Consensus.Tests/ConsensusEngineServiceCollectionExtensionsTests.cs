@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
+using NightElf.Vrf;
+
 namespace NightElf.Kernel.Consensus.Tests;
 
 public sealed class ConsensusEngineServiceCollectionExtensionsTests
@@ -16,9 +18,11 @@ public sealed class ConsensusEngineServiceCollectionExtensionsTests
         using var serviceProvider = services.BuildServiceProvider();
         var options = serviceProvider.GetRequiredService<ConsensusEngineOptions>();
         var engine = serviceProvider.GetRequiredService<IConsensusEngine>();
+        var vrfProvider = serviceProvider.GetRequiredService<IVrfProvider>();
 
         Assert.Equal(ConsensusEngineKind.Aedpos, options.ResolveEngineKind());
         Assert.IsType<AedposConsensusEngine>(engine);
+        Assert.IsType<DeterministicVrfProvider>(vrfProvider);
     }
 
     [Fact]

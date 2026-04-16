@@ -10,6 +10,7 @@ using NightElf.Kernel.Parallel;
 using NightElf.Kernel.SmartContract;
 using NightElf.Runtime.CSharp;
 using NightElf.Sdk.CSharp;
+using NightElf.Vrf;
 
 namespace NightElf.Architecture.Tests;
 
@@ -37,6 +38,15 @@ public sealed class ModuleGraphTests
         var dependency = GetDependencyAttribute<NightElfKernelConsensusModule>();
 
         Assert.Contains(typeof(NightElfKernelCoreModule), dependency.Dependencies);
+        Assert.Contains(typeof(NightElfVrfModule), dependency.Dependencies);
+    }
+
+    [Fact]
+    public void VrfModule_Should_Depend_On_CoreModule()
+    {
+        var dependency = GetDependencyAttribute<NightElfVrfModule>();
+
+        Assert.Contains(typeof(NightElfCoreModule), dependency.Dependencies);
     }
 
     [Fact]

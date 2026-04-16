@@ -2,8 +2,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NightElf.Core\NightElf.Core.csproj" />
-    <ProjectReference Include="..\NightElf.Kernel.Core\NightElf.Kernel.Core.csproj" />
-    <ProjectReference Include="..\NightElf.Vrf\NightElf.Vrf.csproj" />
   </ItemGroup>
 
   <ItemGroup>

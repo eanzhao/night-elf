@@ -15,6 +15,7 @@
     <Project Path="src/NightElf.Runtime.CSharp/NightElf.Runtime.CSharp.csproj" />
     <Project Path="src/NightElf.Sdk.CSharp/NightElf.Sdk.CSharp.csproj" />
     <Project Path="src/NightElf.Sdk.SourceGen/NightElf.Sdk.SourceGen.csproj" />
+    <Project Path="src/NightElf.Vrf/NightElf.Vrf.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/NightElf.Architecture.Tests/NightElf.Architecture.Tests.csproj" />
@@ -28,5 +29,6 @@
     <Project Path="test/NightElf.Runtime.CSharp.Tests/NightElf.Runtime.CSharp.Tests.csproj" />
     <Project Path="test/NightElf.Sdk.CSharp.Tests/NightElf.Sdk.CSharp.Tests.csproj" />
     <Project Path="test/NightElf.Sdk.SourceGen.Tests/NightElf.Sdk.SourceGen.Tests.csproj" />
+    <Project Path="test/NightElf.Vrf.Tests/NightElf.Vrf.Tests.csproj" />
   </Folder>
 </Solution>

@@ -19,8 +19,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\NightElf.Kernel.Consensus\NightElf.Kernel.Consensus.csproj" />
-    <ProjectReference Include="..\..\src\NightElf.Kernel.Core\NightElf.Kernel.Core.csproj" />
     <ProjectReference Include="..\..\src\NightElf.Vrf\NightElf.Vrf.csproj" />
   </ItemGroup>
 

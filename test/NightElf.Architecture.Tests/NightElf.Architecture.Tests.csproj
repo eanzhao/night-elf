@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\src\NightElf.Kernel.SmartContract\NightElf.Kernel.SmartContract.csproj" />
     <ProjectReference Include="..\..\src\NightElf.Runtime.CSharp\NightElf.Runtime.CSharp.csproj" />
     <ProjectReference Include="..\..\src\NightElf.Sdk.CSharp\NightElf.Sdk.CSharp.csproj" />
+    <ProjectReference Include="..\..\src\NightElf.Vrf\NightElf.Vrf.csproj" />
   </ItemGroup>
 
 </Project>

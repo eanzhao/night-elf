@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 
 using NightElf.Kernel.Core;
+using NightElf.Vrf;
 
 namespace NightElf.Kernel.Consensus;
 
@@ -10,11 +11,15 @@ public sealed class AedposConsensusEngine : IConsensusEngine
     private static readonly Encoding HashEncoding = Encoding.UTF8;
 
     private readonly AedposConsensusOptions _options;
+    private readonly IVrfProvider _vrfProvider;
 
-    public AedposConsensusEngine(AedposConsensusOptions? options = null)
+    public AedposConsensusEngine(
+        AedposConsensusOptions? options = null,
+        IVrfProvider? vrfProvider = null)
     {
         _options = options ?? new AedposConsensusOptions();
         _options.Validate();
+        _vrfProvider = vrfProvider ?? new DeterministicVrfProvider();
     }
 
     public ConsensusEngineKind Kind => ConsensusEngineKind.Aedpos;
@@ -55,6 +60,8 @@ public sealed class AedposConsensusEngine : IConsensusEngine
         }
 
         var parentBlockHash = context.PreviousBlock?.Hash ?? "GENESIS";
+        var vrfInput = CreateVrfInput(context.RandomSeed, proposer, context.ExpectedHeight, context.RoundNumber, context.TermNumber);
+        var vrfEvaluation = await _vrfProvider.EvaluateAsync(vrfInput, cancellationToken).ConfigureAwait(false);
         var blockHash = ComputeBlockHash(
             context.ExpectedHeight,
             parentBlockHash,
@@ -62,7 +69,7 @@ public sealed class AedposConsensusEngine : IConsensusEngine
             context.RoundNumber,
             context.TermNumber,
             context.ProposedAtUtc,
-            context.RandomSeed);
+            vrfEvaluation.Randomness);
 
         return new ConsensusBlockProposal
         {
@@ -73,7 +80,10 @@ public sealed class AedposConsensusEngine : IConsensusEngine
             TermNumber = context.TermNumber,
             LastIrreversibleBlockHeight = context.LastIrreversibleBlock?.Height ?? Math.Max(0, context.ExpectedHeight - _options.IrreversibleBlockDistance),
             TimestampUtc = context.ProposedAtUtc,
-            ConsensusData = BuildConsensusData(proposer, validators)
+            RandomSeed = context.RandomSeed.ToArray(),
+            Randomness = vrfEvaluation.Randomness,
+            VrfProof = vrfEvaluation.Proof,
+            ConsensusData = BuildConsensusData(proposer, validators, vrfEvaluation.Randomness)
         };
     }
 
@@ -135,6 +145,20 @@ public sealed class AedposConsensusEngine : IConsensusEngine
             return ConsensusValidationResult.Invalid(
                 "unknown_validator",
                 $"Consensus proposer '{block.ProposerAddress}' is not in the validator set.");
+        }
+
+        var vrfContext = new VrfVerificationContext
+        {
+            Input = CreateVrfInput(block.RandomSeed, block.ProposerAddress, block.Block.Height, block.RoundNumber, block.TermNumber),
+            Proof = block.VrfProof,
+            Randomness = block.Randomness
+        };
+
+        if (!await _vrfProvider.VerifyAsync(vrfContext, cancellationToken).ConfigureAwait(false))
+        {
+            return ConsensusValidationResult.Invalid(
+                "invalid_vrf",
+                $"Consensus VRF proof is invalid for proposer '{block.ProposerAddress}' at height {block.Block.Height}.");
         }
 
         return ConsensusValidationResult.Valid();
@@ -213,9 +237,25 @@ public sealed class AedposConsensusEngine : IConsensusEngine
 
     private static byte[] BuildConsensusData(
         string proposer,
-        IReadOnlyList<ConsensusValidator> validators)
+        IReadOnlyList<ConsensusValidator> validators,
+        byte[] randomness)
     {
         return HashEncoding.GetBytes(
-            $"aedpos|proposer={proposer}|validators={string.Join(",", validators.Select(static validator => validator.Address))}");
+            $"aedpos|proposer={proposer}|validators={string.Join(",", validators.Select(static validator => validator.Address))}|randomness={Convert.ToHexString(randomness)}");
+    }
+
+    private static VrfInput CreateVrfInput(
+        ReadOnlySpan<byte> seed,
+        string publicKey,
+        long height,
+        long roundNumber,
+        long termNumber)
+    {
+        return new VrfInput
+        {
+            PublicKey = publicKey,
+            Domain = $"aedpos:{height}:{termNumber}:{roundNumber}",
+            Seed = seed.ToArray()
+        };
     }
 }

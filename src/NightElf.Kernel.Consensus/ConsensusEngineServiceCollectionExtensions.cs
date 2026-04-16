@@ -2,6 +2,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
+using NightElf.Vrf;
+
 namespace NightElf.Kernel.Consensus;
 
 public static class ConsensusEngineServiceCollectionExtensions
@@ -63,18 +65,24 @@ public static class ConsensusEngineServiceCollectionExtensions
 
         options.Validate();
 
+        services.TryAddSingleton<VrfProviderOptions>(_ => new VrfProviderOptions());
+        services.TryAddSingleton<IVrfProvider>(serviceProvider =>
+            new DeterministicVrfProvider(serviceProvider.GetRequiredService<VrfProviderOptions>()));
         services.TryAddSingleton(options);
         services.TryAddSingleton<IConsensusEngine>(serviceProvider => CreateConsensusEngine(
-            serviceProvider.GetRequiredService<ConsensusEngineOptions>()));
+            serviceProvider.GetRequiredService<ConsensusEngineOptions>(),
+            serviceProvider.GetRequiredService<IVrfProvider>()));
 
         return services;
     }
 
-    private static IConsensusEngine CreateConsensusEngine(ConsensusEngineOptions options)
+    private static IConsensusEngine CreateConsensusEngine(
+        ConsensusEngineOptions options,
+        IVrfProvider vrfProvider)
     {
         return options.ResolveEngineKind() switch
         {
-            ConsensusEngineKind.Aedpos => new AedposConsensusEngine(options.Aedpos),
+            ConsensusEngineKind.Aedpos => new AedposConsensusEngine(options.Aedpos, vrfProvider),
             _ => throw new InvalidOperationException($"Unsupported consensus engine '{options.Engine}'.")
         };
     }

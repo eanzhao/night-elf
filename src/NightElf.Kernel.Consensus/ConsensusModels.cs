@@ -61,6 +61,12 @@ public sealed record class ConsensusBlockProposal
 
     public required DateTimeOffset TimestampUtc { get; init; }
 
+    public byte[] RandomSeed { get; init; } = [];
+
+    public byte[] Randomness { get; init; } = [];
+
+    public byte[] VrfProof { get; init; } = [];
+
     public byte[] ConsensusData { get; init; } = [];
 }
 
