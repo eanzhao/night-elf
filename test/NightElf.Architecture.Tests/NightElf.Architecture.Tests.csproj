@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\NightElf.Database.Hosting\NightElf.Database.Hosting.csproj" />
     <ProjectReference Include="..\..\src\NightElf.Database.Redis\NightElf.Database.Redis.csproj" />
     <ProjectReference Include="..\..\src\NightElf.Database.Tsavorite\NightElf.Database.Tsavorite.csproj" />
+    <ProjectReference Include="..\..\src\NightElf.Kernel.Consensus\NightElf.Kernel.Consensus.csproj" />
     <ProjectReference Include="..\..\src\NightElf.Kernel.Core\NightElf.Kernel.Core.csproj" />
     <ProjectReference Include="..\..\src\NightElf.Kernel.Parallel\NightElf.Kernel.Parallel.csproj" />
     <ProjectReference Include="..\..\src\NightElf.Kernel.SmartContract\NightElf.Kernel.SmartContract.csproj" />

@@ -8,6 +8,7 @@
     <Project Path="src/NightElf.Database.Redis/NightElf.Database.Redis.csproj" />
     <Project Path="src/NightElf.Database.Tsavorite/NightElf.Database.Tsavorite.csproj" />
     <Project Path="src/NightElf.Database/NightElf.Database.csproj" />
+    <Project Path="src/NightElf.Kernel.Consensus/NightElf.Kernel.Consensus.csproj" />
     <Project Path="src/NightElf.Kernel.Core/NightElf.Kernel.Core.csproj" />
     <Project Path="src/NightElf.Kernel.Parallel/NightElf.Kernel.Parallel.csproj" />
     <Project Path="src/NightElf.Kernel.SmartContract/NightElf.Kernel.SmartContract.csproj" />
@@ -19,6 +20,7 @@
     <Project Path="test/NightElf.Architecture.Tests/NightElf.Architecture.Tests.csproj" />
     <Project Path="test/NightElf.Database.Hosting.Tests/NightElf.Database.Hosting.Tests.csproj" />
     <Project Path="test/NightElf.Database.Tsavorite.Tests/NightElf.Database.Tsavorite.Tests.csproj" />
+    <Project Path="test/NightElf.Kernel.Consensus.Tests/NightElf.Kernel.Consensus.Tests.csproj" />
     <Project Path="test/NightElf.Kernel.Core.Tests/NightElf.Kernel.Core.Tests.csproj" />
     <Project Path="test/NightElf.Kernel.Parallel.Tests/NightElf.Kernel.Parallel.Tests.csproj" />
     <Project Path="test/NightElf.Kernel.SmartContract.Tests/NightElf.Kernel.SmartContract.Tests.csproj" />

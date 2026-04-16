@@ -1,3 +1,3 @@
 # NightElf.Kernel.Consensus
 
-Placeholder directory reserved for pluggable consensus implementations.
+Pluggable consensus abstractions plus the first `AEDPoS` implementation.

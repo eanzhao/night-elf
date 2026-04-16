@@ -4,6 +4,7 @@ using NightElf.Database;
 using NightElf.Database.Hosting;
 using NightElf.Database.Redis;
 using NightElf.Database.Tsavorite;
+using NightElf.Kernel.Consensus;
 using NightElf.Kernel.Core;
 using NightElf.Kernel.Parallel;
 using NightElf.Kernel.SmartContract;
@@ -28,6 +29,14 @@ public sealed class ModuleGraphTests
         var dependency = GetDependencyAttribute<NightElfKernelCoreModule>();
 
         Assert.Contains(typeof(NightElfDatabaseModule), dependency.Dependencies);
+    }
+
+    [Fact]
+    public void KernelConsensusModule_Should_Depend_On_KernelCoreModule()
+    {
+        var dependency = GetDependencyAttribute<NightElfKernelConsensusModule>();
+
+        Assert.Contains(typeof(NightElfKernelCoreModule), dependency.Dependencies);
     }
 
     [Fact]
