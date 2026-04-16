@@ -36,11 +36,13 @@ public sealed class NightElfNodeService : NightElfNode.NightElfNodeBase
 
         if (!request.VerifyCoreFields(out var fieldError))
         {
+            await _transactionResultStore.RecordRejectedAsync(transactionId, fieldError, context.CancellationToken).ConfigureAwait(false);
             return CreateRejectedResult(transactionId, fieldError);
         }
 
         if (!request.VerifyEd25519Signature(out var signatureError))
         {
+            await _transactionResultStore.RecordRejectedAsync(transactionId, signatureError, context.CancellationToken).ConfigureAwait(false);
             return CreateRejectedResult(transactionId, signatureError);
         }
 
@@ -62,6 +64,9 @@ public sealed class NightElfNodeService : NightElfNode.NightElfNodeBase
                 : ToProtoResult(existing);
         }
 
+        await _transactionResultStore
+            .RecordRejectedAsync(transactionId, submitResult.Error, context.CancellationToken)
+            .ConfigureAwait(false);
         return CreateRejectedResult(transactionId, submitResult.Error);
     }
 

@@ -16,6 +16,18 @@ public interface ITransactionResultStore
         Transaction transaction,
         CancellationToken cancellationToken = default);
 
+    Task RecordRejectedAsync(
+        string transactionId,
+        string? error,
+        CancellationToken cancellationToken = default);
+
+    Task RecordBlockResultAsync(
+        Transaction transaction,
+        BlockReference block,
+        TransactionResultStatus status,
+        string? error = null,
+        CancellationToken cancellationToken = default);
+
     Task RecordMinedAsync(
         IReadOnlyList<Transaction> transactions,
         BlockReference block,

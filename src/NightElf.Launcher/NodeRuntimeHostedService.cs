@@ -24,6 +24,7 @@ public sealed class NodeRuntimeHostedService : BackgroundService
     private readonly IChainStateStore _chainStateStore;
     private readonly ITransactionPool _transactionPool;
     private readonly ITransactionResultStore _transactionResultStore;
+    private readonly IBlockTransactionExecutionService _transactionExecutionService;
     private readonly TransactionPoolOptions _transactionPoolOptions;
     private readonly IBlockProcessingPipeline _blockProcessingPipeline;
     private readonly INetworkTransportCoordinator _networkTransportCoordinator;
@@ -46,6 +47,7 @@ public sealed class NodeRuntimeHostedService : BackgroundService
         IChainStateStore chainStateStore,
         ITransactionPool transactionPool,
         ITransactionResultStore transactionResultStore,
+        IBlockTransactionExecutionService transactionExecutionService,
         TransactionPoolOptions transactionPoolOptions,
         IBlockProcessingPipeline blockProcessingPipeline,
         INetworkTransportCoordinator networkTransportCoordinator,
@@ -63,6 +65,7 @@ public sealed class NodeRuntimeHostedService : BackgroundService
         _chainStateStore = chainStateStore ?? throw new ArgumentNullException(nameof(chainStateStore));
         _transactionPool = transactionPool ?? throw new ArgumentNullException(nameof(transactionPool));
         _transactionResultStore = transactionResultStore ?? throw new ArgumentNullException(nameof(transactionResultStore));
+        _transactionExecutionService = transactionExecutionService ?? throw new ArgumentNullException(nameof(transactionExecutionService));
         _transactionPoolOptions = transactionPoolOptions ?? throw new ArgumentNullException(nameof(transactionPoolOptions));
         _blockProcessingPipeline = blockProcessingPipeline ?? throw new ArgumentNullException(nameof(blockProcessingPipeline));
         _networkTransportCoordinator = networkTransportCoordinator ?? throw new ArgumentNullException(nameof(networkTransportCoordinator));
@@ -87,6 +90,7 @@ public sealed class NodeRuntimeHostedService : BackgroundService
                 _localNode.QuicPort);
 
             await _blockProcessingPipeline.StartAsync(stoppingToken).ConfigureAwait(false);
+            await RecoverStateFromLatestCheckpointIfNeededAsync(stoppingToken).ConfigureAwait(false);
 
             var genesisResult = await _genesisBlockService.EnsureGenesisAsync(stoppingToken).ConfigureAwait(false);
             _logger.LogInformation(
@@ -175,11 +179,18 @@ public sealed class NodeRuntimeHostedService : BackgroundService
 
         var block = BlockModelFactory.CreateBlock(proposal, _launcherOptions.Genesis.ChainId, transactions);
         await _blockRepository.StoreAsync(proposal.Block, block).ConfigureAwait(false);
+        var executionResult = await _transactionExecutionService
+            .ExecuteAsync(
+                transactions,
+                proposal.Block,
+                proposal.TimestampUtc)
+            .ConfigureAwait(false);
 
         var processingRequest = new BlockProcessingRequest
         {
             Block = proposal.Block,
-            Writes = CreateStateWrites(proposal),
+            Writes = CreateStateWrites(proposal, executionResult.Writes),
+            Deletes = executionResult.Deletes,
             AdvanceLibCheckpoint = false,
             Source = "launcher:block-loop"
         };
@@ -196,6 +207,17 @@ public sealed class NodeRuntimeHostedService : BackgroundService
             _currentBlockCompletion = null;
         }
 
+        foreach (var outcome in executionResult.Outcomes)
+        {
+            await _transactionResultStore
+                .RecordBlockResultAsync(
+                    outcome.Transaction,
+                    proposal.Block,
+                    outcome.Status,
+                    outcome.Error)
+                .ConfigureAwait(false);
+        }
+
         var lastIrreversibleBlock = await ResolveLastIrreversibleBlockAsync(proposal.LastIrreversibleBlockHeight).ConfigureAwait(false);
         await _consensusEngine.OnBlockCommittedAsync(
                 new ConsensusCommitContext
@@ -210,8 +232,6 @@ public sealed class NodeRuntimeHostedService : BackgroundService
             await _chainStateStore.AdvanceLibCheckpointAsync(lastIrreversibleBlock).ConfigureAwait(false);
         }
 
-        await _transactionResultStore.RecordMinedAsync(transactions, proposal.Block).ConfigureAwait(false);
-
         return proposal.Block;
     }
 
@@ -225,9 +245,11 @@ public sealed class NodeRuntimeHostedService : BackgroundService
         return await _blockRepository.GetBlockReferenceByHeightAsync(blockHeight).ConfigureAwait(false);
     }
 
-    private Dictionary<string, byte[]> CreateStateWrites(ConsensusBlockProposal proposal)
+    private Dictionary<string, byte[]> CreateStateWrites(
+        ConsensusBlockProposal proposal,
+        IReadOnlyDictionary<string, byte[]>? executionWrites)
     {
-        return new Dictionary<string, byte[]>(StringComparer.Ordinal)
+        var writes = new Dictionary<string, byte[]>(StringComparer.Ordinal)
         {
             [$"block:{proposal.Block.Height}:hash"] = Encoding.UTF8.GetBytes(proposal.Block.Hash),
             [$"block:{proposal.Block.Height}:producer"] = Encoding.UTF8.GetBytes(proposal.ProposerAddress),
@@ -236,6 +258,41 @@ public sealed class NodeRuntimeHostedService : BackgroundService
             [$"block:{proposal.Block.Height}:timestamp"] = Encoding.UTF8.GetBytes(proposal.TimestampUtc.ToString("O")),
             ["chain:last-produced-hash"] = Encoding.UTF8.GetBytes(proposal.Block.Hash)
         };
+
+        if (executionWrites is not null)
+        {
+            foreach (var write in executionWrites)
+            {
+                writes[write.Key] = write.Value;
+            }
+        }
+
+        return writes;
+    }
+
+    private async Task RecoverStateFromLatestCheckpointIfNeededAsync(CancellationToken cancellationToken)
+    {
+        var bestChain = await _chainStateStore.GetBestChainAsync(cancellationToken).ConfigureAwait(false);
+        if (bestChain is not null)
+        {
+            return;
+        }
+
+        var checkpoints = await _chainStateStore.GetLibCheckpointsAsync(cancellationToken).ConfigureAwait(false);
+        if (checkpoints.Count == 0)
+        {
+            return;
+        }
+
+        await _chainStateStore.RecoverToLatestLibCheckpointAsync(cancellationToken).ConfigureAwait(false);
+        var recoveredBestChain = await _chainStateStore.GetBestChainAsync(cancellationToken).ConfigureAwait(false);
+        if (recoveredBestChain is not null)
+        {
+            _logger.LogInformation(
+                "Recovered chain state from latest checkpoint at {Height}:{Hash}.",
+                recoveredBestChain.Height,
+                recoveredBestChain.Hash);
+        }
     }
 
     private void SubscribeTelemetry()

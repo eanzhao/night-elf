@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\contract\NightElf.Contracts.System.AgentSession\NightElf.Contracts.System.AgentSession.csproj" />
     <ProjectReference Include="..\..\src\NightElf.Kernel.Core\NightElf.Kernel.Core.csproj" />
     <ProjectReference Include="..\..\src\NightElf.Launcher\NightElf.Launcher.csproj" />
     <ProjectReference Include="..\..\src\NightElf.WebApp\NightElf.WebApp.csproj" />

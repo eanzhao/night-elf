@@ -5,7 +5,9 @@ using NightElf.Database;
 using NightElf.Database.Tsavorite;
 using NightElf.Kernel.Consensus;
 using NightElf.Kernel.Core;
+using NightElf.Kernel.SmartContract;
 using NightElf.OS.Network;
+using NightElf.Runtime.CSharp;
 using NightElf.Vrf;
 
 namespace NightElf.Launcher;
@@ -55,6 +57,9 @@ public static class LauncherServiceCollectionExtensions
         services.AddSingleton<IChainStateStore, ChainStateStore>();
         services.AddSingleton<ITransactionPool, MemoryTransactionPool>();
         services.AddSingleton<ITransactionResultStore, ChainStateTransactionResultStore>();
+        services.AddSingleton<SmartContractExecutor>();
+        services.AddSingleton<ContractSandboxExecutionService>();
+        services.AddSingleton<IBlockTransactionExecutionService, SystemContractExecutionService>();
         services.AddSingleton<IBlockProcessingPipeline>(serviceProvider =>
             new ChannelBlockProcessingPipeline(
                 serviceProvider.GetRequiredService<IChainStateStore>(),

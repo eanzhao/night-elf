@@ -62,7 +62,9 @@ public sealed partial class AgentSessionContract : CSharpSmartContract
         return sessionId;
     }
 
-    [ContractMethod]
+    [ContractMethod(
+        ReadExtractor = nameof(GetRecordStepReadKeys),
+        WriteExtractor = nameof(GetRecordStepWriteKeys))]
     public Empty RecordStep(AgentSessionProto.RecordStepInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -102,7 +104,9 @@ public sealed partial class AgentSessionContract : CSharpSmartContract
         return Empty.Value;
     }
 
-    [ContractMethod]
+    [ContractMethod(
+        ReadExtractor = nameof(GetFinalizeSessionReadKeys),
+        WriteExtractor = nameof(GetFinalizeSessionWriteKeys))]
     public Empty FinalizeSession(AgentSessionProto.FinalizeSessionInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -135,20 +139,7 @@ public sealed partial class AgentSessionContract : CSharpSmartContract
 
     private Hash CreateSessionId(Address agentAddress)
     {
-        var blockHeightBytes = new byte[sizeof(long)];
-        var transactionIndexBytes = new byte[sizeof(int)];
-        BinaryPrimitives.WriteInt64LittleEndian(blockHeightBytes, ExecutionContext.BlockHeight);
-        BinaryPrimitives.WriteInt32LittleEndian(transactionIndexBytes, ExecutionContext.TransactionIndex);
-
-        var payload = new byte[agentAddress.Value.Length + blockHeightBytes.Length + transactionIndexBytes.Length];
-        agentAddress.Value.Span.CopyTo(payload);
-        blockHeightBytes.CopyTo(payload, agentAddress.Value.Length);
-        transactionIndexBytes.CopyTo(payload, agentAddress.Value.Length + blockHeightBytes.Length);
-
-        return new Hash
-        {
-            Value = ByteString.CopyFrom(SHA256.HashData(payload))
-        };
+        return CreateSessionId(agentAddress, ExecutionContext.BlockHeight, ExecutionContext.TransactionIndex);
     }
 
     private AgentSessionProto.SessionState LoadSession(string sessionKey, Hash sessionId)
@@ -227,5 +218,54 @@ public sealed partial class AgentSessionContract : CSharpSmartContract
     private static string CreateSessionFinalizedEventKey(Hash sessionId)
     {
         return $"{CreateSessionKey(sessionId)}:event:finalized";
+    }
+
+    private static IEnumerable<string> GetRecordStepReadKeys(AgentSessionProto.RecordStepInput input)
+    {
+        EnsureHash(input.SessionId, nameof(input.SessionId));
+        yield return CreateSessionKey(input.SessionId);
+    }
+
+    private static IEnumerable<string> GetFinalizeSessionReadKeys(AgentSessionProto.FinalizeSessionInput input)
+    {
+        EnsureHash(input.SessionId, nameof(input.SessionId));
+        yield return CreateSessionKey(input.SessionId);
+    }
+
+    private static IEnumerable<string> GetRecordStepWriteKeys(AgentSessionProto.RecordStepInput input)
+    {
+        EnsureHash(input.SessionId, nameof(input.SessionId));
+        EnsureHash(input.StepContentHash, nameof(input.StepContentHash));
+
+        yield return CreateSessionKey(input.SessionId);
+        yield return CreateStepRecordedEventKey(input.SessionId, input.StepContentHash);
+    }
+
+    private static IEnumerable<string> GetFinalizeSessionWriteKeys(AgentSessionProto.FinalizeSessionInput input)
+    {
+        EnsureHash(input.SessionId, nameof(input.SessionId));
+
+        yield return CreateSessionKey(input.SessionId);
+        yield return CreateSessionFinalizedEventKey(input.SessionId);
+    }
+
+    private static Hash CreateSessionId(Address agentAddress, long blockHeight, int transactionIndex)
+    {
+        EnsureAddress(agentAddress, nameof(agentAddress));
+
+        var blockHeightBytes = new byte[sizeof(long)];
+        var transactionIndexBytes = new byte[sizeof(int)];
+        BinaryPrimitives.WriteInt64LittleEndian(blockHeightBytes, blockHeight);
+        BinaryPrimitives.WriteInt32LittleEndian(transactionIndexBytes, transactionIndex);
+
+        var payload = new byte[agentAddress.Value.Length + blockHeightBytes.Length + transactionIndexBytes.Length];
+        agentAddress.Value.Span.CopyTo(payload);
+        blockHeightBytes.CopyTo(payload, agentAddress.Value.Length);
+        transactionIndexBytes.CopyTo(payload, agentAddress.Value.Length + blockHeightBytes.Length);
+
+        return new Hash
+        {
+            Value = ByteString.CopyFrom(SHA256.HashData(payload))
+        };
     }
 }
