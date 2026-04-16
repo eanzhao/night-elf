@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package nightelf.settlement;
+
+option csharp_namespace = "NightElf.WebApp.Protobuf";
+
+import "aelf/core.proto";
+import "nightelf/webapi.proto";
+import "google/protobuf/timestamp.proto";
+
+service ChainSettlement {
+  rpc SubmitTransaction (aelf.Transaction) returns (nightelf.webapp.TransactionResult);
+  rpc QueryState (StateQuery) returns (StateResult);
+  rpc DeployContract (ContractDeployRequest) returns (ContractDeployResult);
+  rpc SubscribeEvents (EventFilter) returns (stream ChainEvent);
+}
+
+message StateQuery {
+  string key = 1;
+}
+
+message StateResult {
+  string key = 1;
+  bool found = 2;
+  bytes value = 3;
+  bool is_versioned = 4;
+  bool is_deleted = 5;
+  int64 block_height = 6;
+  aelf.Hash block_hash = 7;
+}
+
+message ContractDeployRequest {
+  bytes assembly_bytes = 1;
+  bytes signature = 2;
+  aelf.Address deployer = 3;
+  string contract_name = 4;
+}
+
+message ContractDeployResult {
+  aelf.Address contract_address = 1;
+  aelf.Hash transaction_id = 2;
+  nightelf.webapp.TransactionExecutionStatus status = 3;
+  string error = 4;
+  string code_hash = 5;
+  int64 block_height = 6;
+  aelf.Hash block_hash = 7;
+}
+
+enum ChainEventType {
+  CHAIN_EVENT_TYPE_UNSPECIFIED = 0;
+  CHAIN_EVENT_TYPE_BLOCK_ACCEPTED = 1;
+  CHAIN_EVENT_TYPE_TRANSACTION_RESULT = 2;
+  CHAIN_EVENT_TYPE_CONTRACT_DEPLOYED = 3;
+}
+
+message EventFilter {
+  repeated ChainEventType event_types = 1;
+  aelf.Hash transaction_id = 2;
+  aelf.Address contract_address = 3;
+}
+
+message ChainEvent {
+  string event_id = 1;
+  ChainEventType event_type = 2;
+  google.protobuf.Timestamp occurred_at = 3;
+  int64 block_height = 4;
+  aelf.Hash block_hash = 5;
+  aelf.Hash transaction_id = 6;
+  aelf.Address contract_address = 7;
+  string state_key = 8;
+  bytes payload = 9;
+  string message = 10;
+}

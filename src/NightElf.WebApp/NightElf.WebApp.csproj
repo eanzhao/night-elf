@@ -9,6 +9,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
     <PackageReference Include="Google.Protobuf" Version="3.30.2" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
     <PackageReference Include="Grpc.Tools" Version="2.71.0" PrivateAssets="All" />
@@ -16,6 +17,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NightElf.Kernel.Core\NightElf.Kernel.Core.csproj" />
+    <ProjectReference Include="..\NightElf.Runtime.CSharp\NightElf.Runtime.CSharp.csproj" />
+    <ProjectReference Include="..\NightElf.Sdk.CSharp\NightElf.Sdk.CSharp.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,6 +26,10 @@
               ProtoRoot="..\..\protobuf"
               GrpcServices="Both"
               Link="Protobuf\nightelf\webapi.proto" />
+    <Protobuf Include="..\..\protobuf\nightelf\chain_settlement.proto"
+              ProtoRoot="..\..\protobuf"
+              GrpcServices="Both"
+              Link="Protobuf\nightelf\chain_settlement.proto" />
   </ItemGroup>
 
 </Project>

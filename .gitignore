@@ -7,4 +7,5 @@ BenchmarkDotNet.Artifacts/
 artifacts/benchmarks/
 artifacts/nativeaot/
 artifacts/node/
+artifacts/clients/
 **/artifacts/node/

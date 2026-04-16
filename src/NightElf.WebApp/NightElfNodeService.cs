@@ -9,19 +9,16 @@ namespace NightElf.WebApp;
 
 public sealed class NightElfNodeService : NightElfNode.NightElfNodeBase
 {
-    private readonly ITransactionPool _transactionPool;
-    private readonly ITransactionResultStore _transactionResultStore;
+    private readonly TransactionSubmissionService _transactionSubmissionService;
     private readonly IBlockRepository _blockRepository;
     private readonly IChainStateStore _chainStateStore;
 
     public NightElfNodeService(
-        ITransactionPool transactionPool,
-        ITransactionResultStore transactionResultStore,
+        TransactionSubmissionService transactionSubmissionService,
         IBlockRepository blockRepository,
         IChainStateStore chainStateStore)
     {
-        _transactionPool = transactionPool ?? throw new ArgumentNullException(nameof(transactionPool));
-        _transactionResultStore = transactionResultStore ?? throw new ArgumentNullException(nameof(transactionResultStore));
+        _transactionSubmissionService = transactionSubmissionService ?? throw new ArgumentNullException(nameof(transactionSubmissionService));
         _blockRepository = blockRepository ?? throw new ArgumentNullException(nameof(blockRepository));
         _chainStateStore = chainStateStore ?? throw new ArgumentNullException(nameof(chainStateStore));
     }
@@ -31,43 +28,7 @@ public sealed class NightElfNodeService : NightElfNode.NightElfNodeBase
         ServerCallContext context)
     {
         ArgumentNullException.ThrowIfNull(request);
-
-        var transactionId = request.GetTransactionId();
-
-        if (!request.VerifyCoreFields(out var fieldError))
-        {
-            await _transactionResultStore.RecordRejectedAsync(transactionId, fieldError, context.CancellationToken).ConfigureAwait(false);
-            return CreateRejectedResult(transactionId, fieldError);
-        }
-
-        if (!request.VerifyEd25519Signature(out var signatureError))
-        {
-            await _transactionResultStore.RecordRejectedAsync(transactionId, signatureError, context.CancellationToken).ConfigureAwait(false);
-            return CreateRejectedResult(transactionId, signatureError);
-        }
-
-        var submitResult = await _transactionPool.SubmitAsync(request, context.CancellationToken).ConfigureAwait(false);
-        if (submitResult.IsAccepted)
-        {
-            await _transactionResultStore.RecordPendingAsync(request, context.CancellationToken).ConfigureAwait(false);
-            var storedResult = await _transactionResultStore.GetAsync(transactionId, context.CancellationToken).ConfigureAwait(false);
-            return storedResult is null
-                ? CreatePendingResult(transactionId)
-                : ToProtoResult(storedResult);
-        }
-
-        if (submitResult.Status == TransactionPoolSubmitStatus.Duplicate)
-        {
-            var existing = await _transactionResultStore.GetAsync(transactionId, context.CancellationToken).ConfigureAwait(false);
-            return existing is null
-                ? CreatePendingResult(transactionId, submitResult.Error)
-                : ToProtoResult(existing);
-        }
-
-        await _transactionResultStore
-            .RecordRejectedAsync(transactionId, submitResult.Error, context.CancellationToken)
-            .ConfigureAwait(false);
-        return CreateRejectedResult(transactionId, submitResult.Error);
+        return await _transactionSubmissionService.SubmitAsync(request, context.CancellationToken).ConfigureAwait(false);
     }
 
     public override async Task<TransactionResult> GetTransactionResult(
@@ -75,20 +36,7 @@ public sealed class NightElfNodeService : NightElfNode.NightElfNodeBase
         ServerCallContext context)
     {
         ArgumentNullException.ThrowIfNull(request);
-
-        if (request.Value.IsEmpty)
-        {
-            throw new RpcException(new Status(StatusCode.InvalidArgument, "Transaction hash must not be empty."));
-        }
-
-        var result = await _transactionResultStore.GetAsync(request, context.CancellationToken).ConfigureAwait(false);
-        return result is null
-            ? new TransactionResult
-            {
-                TransactionId = request,
-                Status = TransactionExecutionStatus.NotFound
-            }
-            : ToProtoResult(result);
+        return await _transactionSubmissionService.GetResultAsync(request, context.CancellationToken).ConfigureAwait(false);
     }
 
     public override async Task<Block> GetBlockByHeight(
@@ -131,46 +79,4 @@ public sealed class NightElfNodeService : NightElfNode.NightElfNodeBase
             };
     }
 
-    private static TransactionResult ToProtoResult(TransactionResultRecord record)
-    {
-        return new TransactionResult
-        {
-            TransactionId = record.TransactionId.ToProtoHash(),
-            Status = record.Status switch
-            {
-                TransactionResultStatus.Pending => TransactionExecutionStatus.Pending,
-                TransactionResultStatus.Mined => TransactionExecutionStatus.Mined,
-                TransactionResultStatus.Failed => TransactionExecutionStatus.Failed,
-                TransactionResultStatus.Rejected => TransactionExecutionStatus.Rejected,
-                _ => TransactionExecutionStatus.Unspecified
-            },
-            Error = record.Error ?? string.Empty,
-            BlockHeight = record.BlockHeight,
-            BlockHash = string.IsNullOrWhiteSpace(record.BlockHash)
-                ? new Hash()
-                : record.BlockHash.ToProtoHash()
-        };
-    }
-
-    private static TransactionResult CreatePendingResult(string transactionId, string? error = null)
-    {
-        return new TransactionResult
-        {
-            TransactionId = transactionId.ToProtoHash(),
-            Status = TransactionExecutionStatus.Pending,
-            Error = error ?? string.Empty
-        };
-    }
-
-    private static TransactionResult CreateRejectedResult(string transactionId, string? error)
-    {
-        return new TransactionResult
-        {
-            TransactionId = string.IsNullOrWhiteSpace(transactionId)
-                ? new Hash()
-                : transactionId.ToProtoHash(),
-            Status = TransactionExecutionStatus.Rejected,
-            Error = error ?? string.Empty
-        };
-    }
 }

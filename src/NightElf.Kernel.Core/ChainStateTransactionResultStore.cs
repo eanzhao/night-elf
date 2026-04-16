@@ -96,9 +96,27 @@ public sealed class ChainStateTransactionResultStore : ITransactionResultStore
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentNullException.ThrowIfNull(block);
 
+        return RecordBlockResultAsync(
+            transaction.GetTransactionId(),
+            block,
+            status,
+            error,
+            cancellationToken);
+    }
+
+    public Task RecordBlockResultAsync(
+        string transactionId,
+        BlockReference block,
+        TransactionResultStatus status,
+        string? error = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(transactionId);
+        ArgumentNullException.ThrowIfNull(block);
+
         var record = new TransactionResultRecord
         {
-            TransactionId = transaction.GetTransactionId(),
+            TransactionId = transactionId,
             Status = status,
             Error = error,
             BlockHeight = block.Height,

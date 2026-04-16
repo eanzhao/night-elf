@@ -33,6 +33,7 @@ public partial class Program
 
         app.MapNightElfWebApp();
         app.MapGrpcHealthChecksService();
+        _ = app.Services.GetRequiredService<ChainSettlementEventBroker>();
 
         app.Logger.LogInformation(
             "NightElf launcher configured. API endpoint: http://127.0.0.1:{Port}",

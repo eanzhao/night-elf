@@ -1,12 +1,15 @@
 using System.Security.Cryptography;
 using System.Text;
 
+using Google.Protobuf;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 using NightElf.Kernel.Consensus;
 using NightElf.Kernel.Core;
 using NightElf.OS.Network;
+using NightElf.WebApp;
+using NightElf.WebApp.Protobuf;
 
 namespace NightElf.Launcher;
 
@@ -207,6 +210,17 @@ public sealed class NodeRuntimeHostedService : BackgroundService
             _currentBlockCompletion = null;
         }
 
+        await _nonCriticalEventBus.PublishAsync(
+                new ChainSettlementEventEnvelope(
+                    EventId: $"block:{proposal.Block.Hash}",
+                    EventType: ChainEventType.BlockAccepted,
+                    OccurredAtUtc: proposal.TimestampUtc,
+                    BlockHeight: proposal.Block.Height,
+                    BlockHash: proposal.Block.Hash,
+                    Payload: Encoding.UTF8.GetBytes($"{proposal.Block.Height}:{proposal.Block.Hash}"),
+                    Message: "Block accepted"))
+            .ConfigureAwait(false);
+
         foreach (var outcome in executionResult.Outcomes)
         {
             await _transactionResultStore
@@ -215,6 +229,24 @@ public sealed class NodeRuntimeHostedService : BackgroundService
                     proposal.Block,
                     outcome.Status,
                     outcome.Error)
+                .ConfigureAwait(false);
+
+            var transactionResult = TransactionResultProtoConverter.Create(
+                outcome.Transaction.GetTransactionId(),
+                outcome.Status,
+                outcome.Error,
+                proposal.Block);
+            await _nonCriticalEventBus.PublishAsync(
+                    new ChainSettlementEventEnvelope(
+                        EventId: $"tx:{outcome.Transaction.GetTransactionId()}:{transactionResult.Status}",
+                        EventType: ChainEventType.TransactionResult,
+                        OccurredAtUtc: DateTimeOffset.UtcNow,
+                        BlockHeight: proposal.Block.Height,
+                        BlockHash: proposal.Block.Hash,
+                        TransactionId: outcome.Transaction.GetTransactionId(),
+                        ContractAddress: outcome.Transaction.To.ToHex(),
+                        Payload: transactionResult.ToByteArray(),
+                        Message: outcome.Error ?? transactionResult.Status.ToString()))
                 .ConfigureAwait(false);
         }
 
@@ -351,14 +383,29 @@ public sealed class NodeRuntimeHostedService : BackgroundService
             }
         }
 
-        var bestChain = await _chainStateStore.GetBestChainAsync().ConfigureAwait(false);
-        if (bestChain is not null)
+        try
         {
-            await _chainStateStore.AdvanceLibCheckpointAsync(bestChain).ConfigureAwait(false);
-            _logger.LogInformation(
-                "Flushed final checkpoint at {Height}:{Hash}.",
-                bestChain.Height,
-                bestChain.Hash);
+            var bestChain = await _chainStateStore.GetBestChainAsync().ConfigureAwait(false);
+            if (bestChain is not null)
+            {
+                await _chainStateStore.AdvanceLibCheckpointAsync(bestChain).ConfigureAwait(false);
+                _logger.LogInformation(
+                    "Flushed final checkpoint at {Height}:{Hash}.",
+                    bestChain.Height,
+                    bestChain.Hash);
+            }
+        }
+        catch (ObjectDisposedException exception)
+        {
+            _logger.LogDebug(
+                exception,
+                "Skipped final checkpoint flush because the underlying storage has already been disposed.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Failed to flush the final checkpoint during shutdown.");
         }
 
         try

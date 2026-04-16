@@ -28,6 +28,13 @@ public interface ITransactionResultStore
         string? error = null,
         CancellationToken cancellationToken = default);
 
+    Task RecordBlockResultAsync(
+        string transactionId,
+        BlockReference block,
+        TransactionResultStatus status,
+        string? error = null,
+        CancellationToken cancellationToken = default);
+
     Task RecordMinedAsync(
         IReadOnlyList<Transaction> transactions,
         BlockReference block,

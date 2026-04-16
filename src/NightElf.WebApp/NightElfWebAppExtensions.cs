@@ -11,6 +11,9 @@ public static class NightElfWebAppExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddGrpc();
+        services.AddSingleton<TransactionSubmissionService>();
+        services.AddSingleton<ContractDeploymentService>();
+        services.AddSingleton<ChainSettlementEventBroker>();
         return services;
     }
 
@@ -19,6 +22,7 @@ public static class NightElfWebAppExtensions
         ArgumentNullException.ThrowIfNull(endpoints);
 
         endpoints.MapGrpcService<NightElfNodeService>();
+        endpoints.MapGrpcService<ChainSettlementService>();
         return endpoints;
     }
 }

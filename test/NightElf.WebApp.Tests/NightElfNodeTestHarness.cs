@@ -55,16 +55,12 @@ public sealed class NightElfNodeTestHarness : IAsyncDisposable
 
     public NightElfNode.NightElfNodeClient CreateGrpcClient()
     {
-        var app = _app ?? throw new InvalidOperationException("The test harness has not been started.");
-        var server = app.GetTestServer();
-        var channel = GrpcChannel.ForAddress(
-            server.BaseAddress,
-            new GrpcChannelOptions
-            {
-                HttpHandler = server.CreateHandler()
-            });
+        return new NightElfNode.NightElfNodeClient(CreateChannel());
+    }
 
-        return new NightElfNode.NightElfNodeClient(channel);
+    public ChainSettlement.ChainSettlementClient CreateChainSettlementClient()
+    {
+        return new ChainSettlement.ChainSettlementClient(CreateChannel());
     }
 
     public T GetRequiredService<T>()
@@ -289,6 +285,18 @@ public sealed class NightElfNodeTestHarness : IAsyncDisposable
         _app = null;
     }
 
+    private GrpcChannel CreateChannel()
+    {
+        var app = _app ?? throw new InvalidOperationException("The test harness has not been started.");
+        var server = app.GetTestServer();
+        return GrpcChannel.ForAddress(
+            server.BaseAddress,
+            new GrpcChannelOptions
+            {
+                HttpHandler = server.CreateHandler()
+            });
+    }
+
     private static int GetAvailableTcpPort()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -383,8 +391,43 @@ public static class NightElfTransactionTestBuilder
         ArgumentNullException.ThrowIfNull(block);
         return Convert.ToHexString(SHA256.HashData(block.ToByteArray()));
     }
+
+    public static SignedContractDeployEnvelope CreateContractDeployRequest(
+        byte[] assemblyBytes,
+        byte seedMarker,
+        string? contractName = null)
+    {
+        ArgumentNullException.ThrowIfNull(assemblyBytes);
+
+        var seed = Enumerable.Repeat(seedMarker, 32).ToArray();
+        var privateKey = new Ed25519PrivateKeyParameters(seed, 0);
+        var publicKey = privateKey.GeneratePublicKey().GetEncoded();
+        var deployerAddress = new Address
+        {
+            Value = ByteString.CopyFrom(publicKey)
+        };
+
+        var signingHash = ChainSettlementSigningHelper.CreateContractDeploySigningHash(assemblyBytes, contractName);
+        var signer = new Ed25519Signer();
+        signer.Init(true, privateKey);
+        signer.BlockUpdate(signingHash, 0, signingHash.Length);
+
+        var request = new ContractDeployRequest
+        {
+            AssemblyBytes = ByteString.CopyFrom(assemblyBytes),
+            Signature = ByteString.CopyFrom(signer.GenerateSignature()),
+            Deployer = deployerAddress,
+            ContractName = contractName ?? string.Empty
+        };
+
+        return new SignedContractDeployEnvelope(request, deployerAddress);
+    }
 }
 
 public sealed record SignedTransactionEnvelope(
     Transaction Transaction,
     Address SenderAddress);
+
+public sealed record SignedContractDeployEnvelope(
+    ContractDeployRequest Request,
+    Address DeployerAddress);
