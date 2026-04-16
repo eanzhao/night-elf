@@ -54,6 +54,7 @@ public static class LauncherServiceCollectionExtensions
         services.AddSingleton<IBlockRepository, BlockRepository>();
         services.AddSingleton<IChainStateStore, ChainStateStore>();
         services.AddSingleton<ITransactionPool, MemoryTransactionPool>();
+        services.AddSingleton<ITransactionResultStore, ChainStateTransactionResultStore>();
         services.AddSingleton<IBlockProcessingPipeline>(serviceProvider =>
             new ChannelBlockProcessingPipeline(
                 serviceProvider.GetRequiredService<IChainStateStore>(),

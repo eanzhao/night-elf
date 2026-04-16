@@ -20,6 +20,7 @@
     <ProjectReference Include="..\NightElf.OS.Network\NightElf.OS.Network.csproj" />
     <ProjectReference Include="..\NightElf.Runtime.CSharp\NightElf.Runtime.CSharp.csproj" />
     <ProjectReference Include="..\NightElf.Vrf\NightElf.Vrf.csproj" />
+    <ProjectReference Include="..\NightElf.WebApp\NightElf.WebApp.csproj" />
   </ItemGroup>
 
 </Project>

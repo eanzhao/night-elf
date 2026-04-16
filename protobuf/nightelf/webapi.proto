@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package nightelf.webapp;
+
+option csharp_namespace = "NightElf.WebApp.Protobuf";
+
+import "aelf/core.proto";
+import "kernel.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
+
+service NightElfNode {
+  rpc SubmitTransaction (aelf.Transaction) returns (TransactionResult);
+  rpc GetTransactionResult (aelf.Hash) returns (TransactionResult);
+  rpc GetBlockByHeight (google.protobuf.Int64Value) returns (aelf.Block);
+  rpc GetChainStatus (google.protobuf.Empty) returns (ChainStatus);
+}
+
+enum TransactionExecutionStatus {
+  TRANSACTION_EXECUTION_STATUS_UNSPECIFIED = 0;
+  TRANSACTION_EXECUTION_STATUS_PENDING = 1;
+  TRANSACTION_EXECUTION_STATUS_MINED = 2;
+  TRANSACTION_EXECUTION_STATUS_FAILED = 3;
+  TRANSACTION_EXECUTION_STATUS_NOT_FOUND = 4;
+  TRANSACTION_EXECUTION_STATUS_REJECTED = 5;
+}
+
+message TransactionResult {
+  aelf.Hash transaction_id = 1;
+  TransactionExecutionStatus status = 2;
+  string error = 3;
+  int64 block_height = 4;
+  aelf.Hash block_hash = 5;
+}
+
+message ChainStatus {
+  int64 best_chain_height = 1;
+  aelf.Hash best_chain_hash = 2;
+}

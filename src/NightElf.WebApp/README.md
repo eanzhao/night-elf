@@ -1,3 +1,3 @@
 # NightElf.WebApp
 
-Placeholder directory reserved for the API surface.
+Minimal gRPC API surface for launcher-hosted node access.

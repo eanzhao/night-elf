@@ -23,6 +23,7 @@ public sealed class NodeRuntimeHostedService : BackgroundService
     private readonly IBlockRepository _blockRepository;
     private readonly IChainStateStore _chainStateStore;
     private readonly ITransactionPool _transactionPool;
+    private readonly ITransactionResultStore _transactionResultStore;
     private readonly TransactionPoolOptions _transactionPoolOptions;
     private readonly IBlockProcessingPipeline _blockProcessingPipeline;
     private readonly INetworkTransportCoordinator _networkTransportCoordinator;
@@ -44,6 +45,7 @@ public sealed class NodeRuntimeHostedService : BackgroundService
         IBlockRepository blockRepository,
         IChainStateStore chainStateStore,
         ITransactionPool transactionPool,
+        ITransactionResultStore transactionResultStore,
         TransactionPoolOptions transactionPoolOptions,
         IBlockProcessingPipeline blockProcessingPipeline,
         INetworkTransportCoordinator networkTransportCoordinator,
@@ -60,6 +62,7 @@ public sealed class NodeRuntimeHostedService : BackgroundService
         _blockRepository = blockRepository ?? throw new ArgumentNullException(nameof(blockRepository));
         _chainStateStore = chainStateStore ?? throw new ArgumentNullException(nameof(chainStateStore));
         _transactionPool = transactionPool ?? throw new ArgumentNullException(nameof(transactionPool));
+        _transactionResultStore = transactionResultStore ?? throw new ArgumentNullException(nameof(transactionResultStore));
         _transactionPoolOptions = transactionPoolOptions ?? throw new ArgumentNullException(nameof(transactionPoolOptions));
         _blockProcessingPipeline = blockProcessingPipeline ?? throw new ArgumentNullException(nameof(blockProcessingPipeline));
         _networkTransportCoordinator = networkTransportCoordinator ?? throw new ArgumentNullException(nameof(networkTransportCoordinator));
@@ -206,6 +209,8 @@ public sealed class NodeRuntimeHostedService : BackgroundService
         {
             await _chainStateStore.AdvanceLibCheckpointAsync(lastIrreversibleBlock).ConfigureAwait(false);
         }
+
+        await _transactionResultStore.RecordMinedAsync(transactions, proposal.Block).ConfigureAwait(false);
 
         return proposal.Block;
     }
