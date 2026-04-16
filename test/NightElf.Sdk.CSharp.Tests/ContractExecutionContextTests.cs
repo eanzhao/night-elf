@@ -79,7 +79,8 @@ public sealed class ContractExecutionContextTests
             currentContractAddress: "token",
             blockHeight: 123,
             blockHash: "block-hash",
-            timestamp: timestamp);
+            timestamp: timestamp,
+            transactionIndex: 7);
 
         Assert.Same(state, context.State);
         Assert.Same(calls, context.Calls);
@@ -91,6 +92,7 @@ public sealed class ContractExecutionContextTests
         Assert.Equal(123, context.BlockHeight);
         Assert.Equal("block-hash", context.BlockHash);
         Assert.Equal(timestamp, context.Timestamp);
+        Assert.Equal(7, context.TransactionIndex);
     }
 
     private sealed class FakeStateProvider : IContractStateProvider

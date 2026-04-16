@@ -1,9 +1,11 @@
 using System.Text.Json;
+using System.Security.Cryptography;
 
 using Microsoft.Extensions.Configuration;
 
 using Google.Protobuf;
 
+using NightElf.Contracts.System.AgentSession;
 using NightElf.Database;
 using NightElf.Database.Tsavorite;
 using NightElf.Kernel.Consensus;
@@ -65,6 +67,7 @@ public sealed class GenesisBlockServiceTests
         Assert.Equal("DeploySystemContract", GetProperty(deploymentDocument.RootElement, "deploymentMethod").GetString());
         Assert.Equal(created.Block.Hash, GetProperty(deploymentDocument.RootElement, "blockHash").GetString());
         Assert.Equal(1, GetProperty(deploymentDocument.RootElement, "blockHeight").GetInt64());
+        Assert.Equal(ComputeAssemblyCodeHash(typeof(AgentSessionContract)), GetProperty(deploymentDocument.RootElement, "codeHash").GetString());
         Assert.Equal(created.Block.Hash, deploymentRecord.BlockHash);
         Assert.Equal(1, deploymentRecord.BlockHeight);
         Assert.False(deploymentRecord.IsDeleted);
@@ -316,5 +319,10 @@ public sealed class GenesisBlockServiceTests
         }
 
         throw new KeyNotFoundException($"Property '{propertyName}' was not found in JSON payload '{root}'.");
+    }
+
+    private static string ComputeAssemblyCodeHash(Type contractType)
+    {
+        return Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(contractType.Assembly.Location)));
     }
 }

@@ -174,6 +174,7 @@ public sealed class GenesisBlockService : IGenesisBlockService
 
         foreach (var contractName in genesisConfig.SystemContracts)
         {
+            var artifact = SystemContractArtifactCatalog.Resolve(contractName);
             var privateKeySeed = CreateDeterministicSeed(
                 "genesis-deployer",
                 genesisConfig.ChainId,
@@ -191,7 +192,7 @@ public sealed class GenesisBlockService : IGenesisBlockService
                 ContractName = contractName,
                 ChainId = genesisConfig.ChainId,
                 Category = "System",
-                CodeHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(contractName)))
+                CodeHash = artifact.CodeHash
             };
 
             var transaction = new NightElf.Kernel.Core.Protobuf.Transaction

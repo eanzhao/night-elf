@@ -3,6 +3,7 @@
     <Project Path="benchmarks/NightElf.Benchmarks/NightElf.Benchmarks.csproj" />
   </Folder>
   <Folder Name="/contract/">
+    <Project Path="contract/NightElf.Contracts.System.AgentSession/NightElf.Contracts.System.AgentSession.csproj" />
     <Project Path="contract/NightElf.Contracts.System.TokenAotPrototype/NightElf.Contracts.System.TokenAotPrototype.csproj" />
   </Folder>
   <Folder Name="/src/">
@@ -25,6 +26,7 @@
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/NightElf.Architecture.Tests/NightElf.Architecture.Tests.csproj" />
+    <Project Path="test/NightElf.Contracts.System.AgentSession.Tests/NightElf.Contracts.System.AgentSession.Tests.csproj" />
     <Project Path="test/NightElf.Contracts.System.TokenAotPrototype.Tests/NightElf.Contracts.System.TokenAotPrototype.Tests.csproj" />
     <Project Path="test/NightElf.Database.Hosting.Tests/NightElf.Database.Hosting.Tests.csproj" />
     <Project Path="test/NightElf.Database.Tsavorite.Tests/NightElf.Database.Tsavorite.Tests.csproj" />

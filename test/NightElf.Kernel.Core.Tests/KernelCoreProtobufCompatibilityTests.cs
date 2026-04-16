@@ -118,6 +118,22 @@ public sealed class KernelCoreProtobufCompatibilityTests
         Assert.Equal([0xAA, 0xBB, 0xCC, 0xDD], transaction.RefBlockPrefix.ToByteArray());
     }
 
+    [Fact]
+    public void Hash_And_Address_Should_RoundTrip_Through_Contract_Codecs()
+    {
+        var hash = CreateHash(0x0A, 0x0B, 0x0C);
+        var address = CreateAddress(0x10, 0x11, 0x12);
+
+        var encodedHash = Hash.Encode(hash);
+        var encodedAddress = Address.Encode(address);
+        var roundTripHash = Hash.Decode(encodedHash);
+        var roundTripAddress = Address.Decode(encodedAddress);
+
+        Assert.Equal("0A0B0C", roundTripHash.ToHex());
+        Assert.Equal("101112", roundTripAddress.ToHex());
+        Assert.Equal(roundTripAddress, "101112".ToProtoAddress());
+    }
+
     private static Address CreateAddress(params byte[] value)
     {
         return new Address

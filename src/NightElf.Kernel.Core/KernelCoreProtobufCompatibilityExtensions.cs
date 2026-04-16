@@ -6,6 +6,12 @@ namespace NightElf.Kernel.Core;
 
 public static class KernelCoreProtobufCompatibilityExtensions
 {
+    public static string ToHex(this Address address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return Convert.ToHexString(address.Value.Span);
+    }
+
     public static string ToHex(this Hash hash)
     {
         ArgumentNullException.ThrowIfNull(hash);
@@ -19,6 +25,16 @@ public static class KernelCoreProtobufCompatibilityExtensions
         return new Hash
         {
             Value = ByteString.CopyFrom(Convert.FromHexString(hashHex))
+        };
+    }
+
+    public static Address ToProtoAddress(this string addressHex)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(addressHex);
+
+        return new Address
+        {
+            Value = ByteString.CopyFrom(Convert.FromHexString(addressHex))
         };
     }
 

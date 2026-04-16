@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\NightElf.Core\NightElf.Core.csproj" />
     <ProjectReference Include="..\NightElf.Database\NightElf.Database.csproj" />
+    <ProjectReference Include="..\NightElf.Sdk.CSharp\NightElf.Sdk.CSharp.csproj" />
   </ItemGroup>
 
   <ItemGroup>
