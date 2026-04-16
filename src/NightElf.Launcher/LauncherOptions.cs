@@ -47,7 +47,18 @@ public sealed class LauncherOptions
             {
                 Host = networkSection[nameof(LauncherNetworkOptions.Host)] ?? "127.0.0.1",
                 GrpcPort = ParseInt32(networkSection[nameof(LauncherNetworkOptions.GrpcPort)], 6800),
-                QuicPort = ParseInt32(networkSection[nameof(LauncherNetworkOptions.QuicPort)], 6801)
+                QuicPort = ParseInt32(networkSection[nameof(LauncherNetworkOptions.QuicPort)], 6801),
+                JoinRetryDelay = ParseTimeSpan(
+                    networkSection[nameof(LauncherNetworkOptions.JoinRetryDelay)],
+                    TimeSpan.FromMilliseconds(250)),
+                JoinMaxAttempts = ParseInt32(
+                    networkSection[nameof(LauncherNetworkOptions.JoinMaxAttempts)],
+                    20),
+                Peers = networkSection
+                    .GetSection(nameof(LauncherNetworkOptions.Peers))
+                    .GetChildren()
+                    .Select(LauncherPeerOptions.FromConfiguration)
+                    .ToList()
             },
             Genesis = GenesisConfig.FromConfiguration(genesisSection)
         };
@@ -160,6 +171,12 @@ public sealed class LauncherNetworkOptions
 
     public int QuicPort { get; set; } = 6801;
 
+    public TimeSpan JoinRetryDelay { get; set; } = TimeSpan.FromMilliseconds(250);
+
+    public int JoinMaxAttempts { get; set; } = 20;
+
+    public List<LauncherPeerOptions> Peers { get; set; } = [];
+
     public void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(Host);
@@ -173,6 +190,109 @@ public sealed class LauncherNetworkOptions
         {
             throw new InvalidOperationException("NightElf:Launcher:Network:QuicPort must be between 0 and 65535.");
         }
+
+        if (JoinRetryDelay <= TimeSpan.Zero)
+        {
+            throw new InvalidOperationException("NightElf:Launcher:Network:JoinRetryDelay must be greater than zero.");
+        }
+
+        if (JoinMaxAttempts <= 0)
+        {
+            throw new InvalidOperationException("NightElf:Launcher:Network:JoinMaxAttempts must be greater than zero.");
+        }
+
+        var seenNodeIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var peer in Peers)
+        {
+            peer.Validate();
+
+            if (!seenNodeIds.Add(peer.NodeId))
+            {
+                throw new InvalidOperationException(
+                    $"NightElf:Launcher:Network:Peers contains duplicate peer node '{peer.NodeId}'.");
+            }
+        }
+    }
+}
+
+public sealed class LauncherPeerOptions
+{
+    public string NodeId { get; set; } = string.Empty;
+
+    public string Host { get; set; } = "127.0.0.1";
+
+    public int GrpcPort { get; set; }
+
+    public int QuicPort { get; set; }
+
+    public static LauncherPeerOptions FromConfiguration(IConfigurationSection section)
+    {
+        ArgumentNullException.ThrowIfNull(section);
+
+        return new LauncherPeerOptions
+        {
+            NodeId = section[nameof(NodeId)] ?? string.Empty,
+            Host = section[nameof(Host)] ?? "127.0.0.1",
+            GrpcPort = ParsePort(section[nameof(GrpcPort)]),
+            QuicPort = ParsePort(section[nameof(QuicPort)])
+        };
+    }
+
+    public static LauncherPeerOptions FromEndpoint(NetworkNodeEndpoint endpoint)
+    {
+        ArgumentNullException.ThrowIfNull(endpoint);
+
+        return new LauncherPeerOptions
+        {
+            NodeId = endpoint.NodeId,
+            Host = endpoint.Host,
+            GrpcPort = endpoint.GrpcPort,
+            QuicPort = endpoint.QuicPort
+        };
+    }
+
+    public NetworkNodeEndpoint ToEndpoint()
+    {
+        Validate();
+
+        return new NetworkNodeEndpoint
+        {
+            NodeId = NodeId,
+            Host = Host,
+            GrpcPort = GrpcPort,
+            QuicPort = QuicPort
+        };
+    }
+
+    public void Validate()
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(NodeId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(Host);
+
+        if (GrpcPort < 0 || GrpcPort > 65535)
+        {
+            throw new InvalidOperationException("Launcher peer gRPC port must be between 0 and 65535.");
+        }
+
+        if (QuicPort < 0 || QuicPort > 65535)
+        {
+            throw new InvalidOperationException("Launcher peer QUIC port must be between 0 and 65535.");
+        }
+    }
+
+    private static int ParsePort(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return 0;
+        }
+
+        if (int.TryParse(value, out var parsed))
+        {
+            return parsed;
+        }
+
+        throw new InvalidOperationException($"Invalid integer value '{value}' in launcher peer configuration.");
     }
 }
 

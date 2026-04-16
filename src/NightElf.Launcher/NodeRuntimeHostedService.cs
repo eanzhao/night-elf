@@ -1,17 +1,9 @@
-using System.Security.Cryptography;
-using System.Text;
-
-using Google.Protobuf;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-using NightElf.Contracts.System.AgentSession.Protobuf;
 using NightElf.Kernel.Consensus;
 using NightElf.Kernel.Core;
-using NightElf.Kernel.Core.Protobuf;
 using NightElf.OS.Network;
-using NightElf.WebApp;
-using NightElf.WebApp.Protobuf;
 
 namespace NightElf.Launcher;
 
@@ -23,20 +15,15 @@ public sealed class NodeRuntimeHostedService : BackgroundService
     private readonly LauncherOptions _launcherOptions;
     private readonly NightElfNodeStorage _nodeStorage;
     private readonly IGenesisBlockService _genesisBlockService;
-    private readonly IConsensusEngine _consensusEngine;
     private readonly ConsensusEngineOptions _consensusOptions;
-    private readonly IBlockRepository _blockRepository;
     private readonly IChainStateStore _chainStateStore;
-    private readonly ITransactionPool _transactionPool;
-    private readonly ITransactionResultStore _transactionResultStore;
-    private readonly IBlockTransactionExecutionService _transactionExecutionService;
     private readonly TransactionPoolOptions _transactionPoolOptions;
     private readonly IBlockProcessingPipeline _blockProcessingPipeline;
     private readonly INetworkTransportCoordinator _networkTransportCoordinator;
     private readonly INonCriticalEventBus _nonCriticalEventBus;
+    private readonly ConsensusClusterCoordinator _clusterCoordinator;
 
     private IDisposable? _telemetrySubscription;
-    private Task<BlockProcessingResult>? _currentBlockCompletion;
     private NetworkNodeEndpoint? _localNode;
 
     public NodeRuntimeHostedService(
@@ -46,17 +33,13 @@ public sealed class NodeRuntimeHostedService : BackgroundService
         LauncherOptions launcherOptions,
         NightElfNodeStorage nodeStorage,
         IGenesisBlockService genesisBlockService,
-        IConsensusEngine consensusEngine,
         ConsensusEngineOptions consensusOptions,
-        IBlockRepository blockRepository,
         IChainStateStore chainStateStore,
-        ITransactionPool transactionPool,
-        ITransactionResultStore transactionResultStore,
-        IBlockTransactionExecutionService transactionExecutionService,
         TransactionPoolOptions transactionPoolOptions,
         IBlockProcessingPipeline blockProcessingPipeline,
         INetworkTransportCoordinator networkTransportCoordinator,
-        INonCriticalEventBus nonCriticalEventBus)
+        INonCriticalEventBus nonCriticalEventBus,
+        ConsensusClusterCoordinator clusterCoordinator)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _applicationLifetime = applicationLifetime ?? throw new ArgumentNullException(nameof(applicationLifetime));
@@ -64,305 +47,99 @@ public sealed class NodeRuntimeHostedService : BackgroundService
         _launcherOptions = launcherOptions ?? throw new ArgumentNullException(nameof(launcherOptions));
         _nodeStorage = nodeStorage ?? throw new ArgumentNullException(nameof(nodeStorage));
         _genesisBlockService = genesisBlockService ?? throw new ArgumentNullException(nameof(genesisBlockService));
-        _consensusEngine = consensusEngine ?? throw new ArgumentNullException(nameof(consensusEngine));
         _consensusOptions = consensusOptions ?? throw new ArgumentNullException(nameof(consensusOptions));
-        _blockRepository = blockRepository ?? throw new ArgumentNullException(nameof(blockRepository));
         _chainStateStore = chainStateStore ?? throw new ArgumentNullException(nameof(chainStateStore));
-        _transactionPool = transactionPool ?? throw new ArgumentNullException(nameof(transactionPool));
-        _transactionResultStore = transactionResultStore ?? throw new ArgumentNullException(nameof(transactionResultStore));
-        _transactionExecutionService = transactionExecutionService ?? throw new ArgumentNullException(nameof(transactionExecutionService));
         _transactionPoolOptions = transactionPoolOptions ?? throw new ArgumentNullException(nameof(transactionPoolOptions));
         _blockProcessingPipeline = blockProcessingPipeline ?? throw new ArgumentNullException(nameof(blockProcessingPipeline));
         _networkTransportCoordinator = networkTransportCoordinator ?? throw new ArgumentNullException(nameof(networkTransportCoordinator));
         _nonCriticalEventBus = nonCriticalEventBus ?? throw new ArgumentNullException(nameof(nonCriticalEventBus));
+        _clusterCoordinator = clusterCoordinator ?? throw new ArgumentNullException(nameof(clusterCoordinator));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
         {
-            SubscribeTelemetry();
-            LogModuleLoadOrder();
-            LogStorageInitialization();
-
-            _localNode = await _networkTransportCoordinator
-                .StartAsync(_launcherOptions.CreateLocalNodeEndpoint(), stoppingToken)
-                .ConfigureAwait(false);
-            _logger.LogInformation(
-                "Network transport started for node {NodeId} at grpc={GrpcPort}, quic={QuicPort}.",
-                _localNode.NodeId,
-                _localNode.GrpcPort,
-                _localNode.QuicPort);
-
-            await _blockProcessingPipeline.StartAsync(stoppingToken).ConfigureAwait(false);
-            await RecoverStateFromLatestCheckpointIfNeededAsync(stoppingToken).ConfigureAwait(false);
-
-            var genesisResult = await _genesisBlockService.EnsureGenesisAsync(stoppingToken).ConfigureAwait(false);
-            _logger.LogInformation(
-                genesisResult.Created
-                    ? "Genesis block created at {Height}:{Hash}."
-                    : "Genesis already present at {Height}:{Hash}.",
-                genesisResult.Block.Height,
-                genesisResult.Block.Hash);
-
-            var producedBlocks = 0;
-            while (!stoppingToken.IsCancellationRequested)
+            try
             {
-                if (_launcherOptions.MaxProducedBlocks.HasValue &&
-                    producedBlocks >= _launcherOptions.MaxProducedBlocks.Value)
-                {
-                    _logger.LogInformation(
-                        "Launcher reached MaxProducedBlocks={MaxProducedBlocks}; stopping host.",
-                        _launcherOptions.MaxProducedBlocks.Value);
-                    _applicationLifetime.StopApplication();
-                    break;
-                }
+                SubscribeTelemetry();
+                LogModuleLoadOrder();
+                LogStorageInitialization();
 
-                var producedBlock = await ProduceNextBlockAsync().ConfigureAwait(false);
-                producedBlocks++;
+                _localNode = await _networkTransportCoordinator
+                    .StartAsync(_launcherOptions.CreateLocalNodeEndpoint(), stoppingToken)
+                    .ConfigureAwait(false);
+                _logger.LogInformation(
+                    "Network transport started for node {NodeId} at grpc={GrpcPort}, quic={QuicPort}.",
+                    _localNode.NodeId,
+                    _localNode.GrpcPort,
+                    _localNode.QuicPort);
+                _clusterCoordinator.AttachLocalNode(_localNode);
+
+                await _blockProcessingPipeline.StartAsync(stoppingToken).ConfigureAwait(false);
+                await RecoverStateFromLatestCheckpointIfNeededAsync(stoppingToken).ConfigureAwait(false);
+
+                var genesisResult = await _genesisBlockService.EnsureGenesisAsync(stoppingToken).ConfigureAwait(false);
+                _logger.LogInformation(
+                    genesisResult.Created
+                        ? "Genesis block created at {Height}:{Hash}."
+                        : "Genesis already present at {Height}:{Hash}.",
+                    genesisResult.Block.Height,
+                    genesisResult.Block.Hash);
 
                 _logger.LogInformation(
-                    "Produced block {Height}:{Hash}.",
-                    producedBlock.Height,
-                    producedBlock.Hash);
+                    "Starting cluster join for node {NodeId} with {PeerCount} configured peers.",
+                    _launcherOptions.NodeId,
+                    _launcherOptions.Network.Peers.Count);
+                await _clusterCoordinator.JoinClusterAsync(stoppingToken).ConfigureAwait(false);
+                _logger.LogInformation(
+                    "Cluster join completed for node {NodeId}.",
+                    _launcherOptions.NodeId);
 
-                try
+                var producedBlocks = 0;
+                while (!stoppingToken.IsCancellationRequested)
                 {
-                    await Task.Delay(_consensusOptions.GetBlockInterval(), stoppingToken).ConfigureAwait(false);
+                    if (_launcherOptions.MaxProducedBlocks.HasValue &&
+                        producedBlocks >= _launcherOptions.MaxProducedBlocks.Value)
+                    {
+                        _logger.LogInformation(
+                            "Launcher reached MaxProducedBlocks={MaxProducedBlocks}; stopping host.",
+                            _launcherOptions.MaxProducedBlocks.Value);
+                        _applicationLifetime.StopApplication();
+                        break;
+                    }
+
+                    var producedBlock = await _clusterCoordinator
+                        .TryProduceNextBlockAsync("launcher:block-loop", stoppingToken)
+                        .ConfigureAwait(false);
+                    if (producedBlock is not null)
+                    {
+                        producedBlocks++;
+                        _logger.LogInformation(
+                            "Produced block {Height}:{Hash}.",
+                            producedBlock.Height,
+                            producedBlock.Hash);
+                    }
+
+                    try
+                    {
+                        await Task.Delay(_consensusOptions.GetBlockInterval(), stoppingToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
                 }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                _logger.LogDebug("Node runtime loop observed host cancellation.");
             }
         }
         finally
         {
             await ShutdownAsync().ConfigureAwait(false);
         }
-    }
-
-    private async Task<BlockReference> ProduceNextBlockAsync()
-    {
-        var previousBlock = await _chainStateStore.GetBestChainAsync().ConfigureAwait(false)
-                           ?? throw new InvalidOperationException("Genesis must exist before block production can start.");
-
-        var nextHeight = previousBlock.Height + 1;
-        var (roundNumber, termNumber) = _consensusOptions.ResolveRoundAndTerm(nextHeight);
-        var transactions = await _transactionPool
-            .TakeBatchAsync(_transactionPoolOptions.DefaultBatchSize)
-            .ConfigureAwait(false);
-        var proposal = await _consensusEngine.ProposeBlockAsync(
-                new ConsensusContext
-                {
-                    ExpectedHeight = nextHeight,
-                    PreviousBlock = previousBlock,
-                    LastIrreversibleBlock = await ResolveLastIrreversibleBlockAsync(
-                            _consensusOptions.ResolveLastIrreversibleBlockHeightHint(nextHeight))
-                        .ConfigureAwait(false),
-                    RoundNumber = roundNumber,
-                    TermNumber = termNumber,
-                    ProposedAtUtc = DateTimeOffset.UtcNow,
-                    RandomSeed = SHA256.HashData(Encoding.UTF8.GetBytes(previousBlock.Hash))
-                })
-            .ConfigureAwait(false);
-
-        var validation = await _consensusEngine.ValidateBlockAsync(
-                proposal,
-                new ConsensusValidationContext
-                {
-                    ExpectedHeight = nextHeight,
-                    PreviousBlock = previousBlock
-                })
-            .ConfigureAwait(false);
-
-        if (!validation.IsValid)
-        {
-            throw new InvalidOperationException(
-                $"Consensus validation failed for block {proposal.Block.Height}:{proposal.Block.Hash}: {validation.ErrorCode} {validation.ErrorMessage}");
-        }
-
-        var block = BlockModelFactory.CreateBlock(proposal, _launcherOptions.Genesis.ChainId, transactions);
-        await _blockRepository.StoreAsync(proposal.Block, block).ConfigureAwait(false);
-        var executionResult = await _transactionExecutionService
-            .ExecuteAsync(
-                transactions,
-                proposal.Block,
-                proposal.TimestampUtc)
-            .ConfigureAwait(false);
-
-        var processingRequest = new BlockProcessingRequest
-        {
-            Block = proposal.Block,
-            Writes = CreateStateWrites(proposal, executionResult.Writes),
-            Deletes = executionResult.Deletes,
-            AdvanceLibCheckpoint = false,
-            Source = "launcher:block-loop"
-        };
-
-        var ticket = await _blockProcessingPipeline.EnqueueAsync(processingRequest).ConfigureAwait(false);
-        _currentBlockCompletion = ticket.Completion;
-
-        try
-        {
-            await ticket.Completion.ConfigureAwait(false);
-        }
-        finally
-        {
-            _currentBlockCompletion = null;
-        }
-
-        await _nonCriticalEventBus.PublishAsync(
-                new ChainSettlementEventEnvelope(
-                    EventId: $"block:{proposal.Block.Hash}",
-                    EventType: ChainEventType.BlockAccepted,
-                    OccurredAtUtc: proposal.TimestampUtc,
-                    BlockHeight: proposal.Block.Height,
-                    BlockHash: proposal.Block.Hash,
-                    Payload: Encoding.UTF8.GetBytes($"{proposal.Block.Height}:{proposal.Block.Hash}"),
-                    Message: "Block accepted"))
-            .ConfigureAwait(false);
-
-        foreach (var outcome in executionResult.Outcomes)
-        {
-            await _transactionResultStore
-                .RecordBlockResultAsync(
-                    outcome.Transaction,
-                    proposal.Block,
-                    outcome.Status,
-                    outcome.Error)
-                .ConfigureAwait(false);
-
-            var transactionResult = TransactionResultProtoConverter.Create(
-                outcome.Transaction.GetTransactionId(),
-                outcome.Status,
-                outcome.Error,
-                proposal.Block);
-            await _nonCriticalEventBus.PublishAsync(
-                    new ChainSettlementEventEnvelope(
-                        EventId: $"tx:{outcome.Transaction.GetTransactionId()}:{transactionResult.Status}",
-                        EventType: ChainEventType.TransactionResult,
-                        OccurredAtUtc: DateTimeOffset.UtcNow,
-                        BlockHeight: proposal.Block.Height,
-                        BlockHash: proposal.Block.Hash,
-                        TransactionId: outcome.Transaction.GetTransactionId(),
-                        ContractAddress: outcome.Transaction.To.ToHex(),
-                        Payload: transactionResult.ToByteArray(),
-                        Message: outcome.Error ?? transactionResult.Status.ToString()))
-                .ConfigureAwait(false);
-
-            await PublishTokenMeteringEventAsync(
-                    outcome,
-                    proposal.Block,
-                    executionResult.Writes)
-                .ConfigureAwait(false);
-        }
-
-        var lastIrreversibleBlock = await ResolveLastIrreversibleBlockAsync(proposal.LastIrreversibleBlockHeight).ConfigureAwait(false);
-        await _consensusEngine.OnBlockCommittedAsync(
-                new ConsensusCommitContext
-                {
-                    Block = proposal,
-                    LastIrreversibleBlock = lastIrreversibleBlock
-                })
-            .ConfigureAwait(false);
-
-        if (lastIrreversibleBlock is not null)
-        {
-            await _chainStateStore.AdvanceLibCheckpointAsync(lastIrreversibleBlock).ConfigureAwait(false);
-        }
-
-        return proposal.Block;
-    }
-
-    private async Task<BlockReference?> ResolveLastIrreversibleBlockAsync(long blockHeight)
-    {
-        if (blockHeight <= 0)
-        {
-            return null;
-        }
-
-        return await _blockRepository.GetBlockReferenceByHeightAsync(blockHeight).ConfigureAwait(false);
-    }
-
-    private async Task PublishTokenMeteringEventAsync(
-        BlockTransactionExecutionOutcome outcome,
-        BlockReference block,
-        IReadOnlyDictionary<string, byte[]> executionWrites)
-    {
-        ArgumentNullException.ThrowIfNull(outcome);
-        ArgumentNullException.ThrowIfNull(block);
-        ArgumentNullException.ThrowIfNull(executionWrites);
-
-        if (outcome.Status != TransactionResultStatus.Mined ||
-            !string.Equals(outcome.Transaction.MethodName, "RecordStep", StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        try
-        {
-            var input = RecordStepInput.Parser.ParseFrom(outcome.Transaction.Params);
-            var stateKey = CreateStepRecordedStateKey(input.SessionId, input.StepContentHash);
-            if (!executionWrites.TryGetValue(stateKey, out var payload))
-            {
-                return;
-            }
-
-            var stepRecorded = StepRecorded.Parser.ParseFrom(payload);
-            await _nonCriticalEventBus.PublishAsync(
-                    new ChainSettlementEventEnvelope(
-                        EventId: $"meter:{outcome.Transaction.GetTransactionId()}:{stepRecorded.StepContentHash.ToHex()}",
-                        EventType: ChainEventType.TokenMetered,
-                        OccurredAtUtc: DateTimeOffset.UtcNow,
-                        BlockHeight: block.Height,
-                        BlockHash: block.Hash,
-                        TransactionId: outcome.Transaction.GetTransactionId(),
-                        ContractAddress: outcome.Transaction.To.ToHex(),
-                        StateKey: stateKey,
-                        Payload: payload,
-                        Message: stepRecorded.MeteringSource.ToString()))
-                .ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            _logger.LogWarning(
-                exception,
-                "Failed to publish token metering event for transaction {TransactionId}.",
-                outcome.Transaction.GetTransactionId());
-        }
-    }
-
-    private Dictionary<string, byte[]> CreateStateWrites(
-        ConsensusBlockProposal proposal,
-        IReadOnlyDictionary<string, byte[]>? executionWrites)
-    {
-        var writes = new Dictionary<string, byte[]>(StringComparer.Ordinal)
-        {
-            [$"block:{proposal.Block.Height}:hash"] = Encoding.UTF8.GetBytes(proposal.Block.Hash),
-            [$"block:{proposal.Block.Height}:producer"] = Encoding.UTF8.GetBytes(proposal.ProposerAddress),
-            [$"block:{proposal.Block.Height}:round"] = Encoding.UTF8.GetBytes(proposal.RoundNumber.ToString()),
-            [$"block:{proposal.Block.Height}:term"] = Encoding.UTF8.GetBytes(proposal.TermNumber.ToString()),
-            [$"block:{proposal.Block.Height}:timestamp"] = Encoding.UTF8.GetBytes(proposal.TimestampUtc.ToString("O")),
-            ["chain:last-produced-hash"] = Encoding.UTF8.GetBytes(proposal.Block.Hash)
-        };
-
-        if (executionWrites is not null)
-        {
-            foreach (var write in executionWrites)
-            {
-                writes[write.Key] = write.Value;
-            }
-        }
-
-        return writes;
-    }
-
-    private static string CreateStepRecordedStateKey(Hash sessionId, Hash stepContentHash)
-    {
-        ArgumentNullException.ThrowIfNull(sessionId);
-        ArgumentNullException.ThrowIfNull(stepContentHash);
-        return $"session:{sessionId.ToHex()}:event:step:{stepContentHash.ToHex()}";
     }
 
     private async Task RecoverStateFromLatestCheckpointIfNeededAsync(CancellationToken cancellationToken)
@@ -432,18 +209,15 @@ public sealed class NodeRuntimeHostedService : BackgroundService
     {
         _logger.LogInformation("Launcher shutdown requested.");
 
-        if (_currentBlockCompletion is not null)
+        try
         {
-            try
-            {
-                await _currentBlockCompletion.WaitAsync(_launcherOptions.ShutdownTimeout).ConfigureAwait(false);
-            }
-            catch (TimeoutException)
-            {
-                _logger.LogWarning(
-                    "Timed out waiting {Timeout} for the current block to finish during shutdown.",
-                    _launcherOptions.ShutdownTimeout);
-            }
+            await _clusterCoordinator.WaitForInflightAsync(_launcherOptions.ShutdownTimeout).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            _logger.LogWarning(
+                "Timed out waiting {Timeout} for the current block to finish during shutdown.",
+                _launcherOptions.ShutdownTimeout);
         }
 
         try

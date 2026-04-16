@@ -14,6 +14,7 @@ public static class NightElfWebAppExtensions
         services.AddSingleton<TransactionSubmissionService>();
         services.AddSingleton<ContractDeploymentService>();
         services.AddSingleton<ChainSettlementEventBroker>();
+        services.AddSingleton<ITransactionRelayService, NullTransactionRelayService>();
         services.AddSingleton<ITextTokenizer, WhitespaceTextTokenizer>();
         services.AddSingleton<ILocalModelInferenceInterceptor, LocalModelInferenceInterceptor>();
         services.AddSingleton<IRemoteApiUsageExtractor, OpenAiUsageExtractor>();

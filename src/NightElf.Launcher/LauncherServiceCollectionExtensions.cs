@@ -9,6 +9,7 @@ using NightElf.Kernel.SmartContract;
 using NightElf.OS.Network;
 using NightElf.Runtime.CSharp;
 using NightElf.Vrf;
+using NightElf.WebApp;
 
 namespace NightElf.Launcher;
 
@@ -29,6 +30,13 @@ public static class LauncherServiceCollectionExtensions
         services.AddSingleton(new LauncherModuleCatalog());
         services.AddSingleton<INonCriticalEventBus, InMemoryNonCriticalEventBus>();
         services.AddSingleton<IBlockSyncNotifier, LoggingBlockSyncNotifier>();
+        services.AddSingleton<ClusterPeerRegistry>();
+        services.AddSingleton<ConsensusClusterCoordinator>();
+        services.AddSingleton<INetworkMessageSink>(serviceProvider =>
+            serviceProvider.GetRequiredService<ConsensusClusterCoordinator>());
+        services.AddSingleton<ITransactionRelayService>(serviceProvider =>
+            serviceProvider.GetRequiredService<NetworkTransactionRelayService>());
+        services.AddSingleton<NetworkTransactionRelayService>();
 
         var consensusOptions = ConsensusEngineOptions.FromConfiguration(configuration);
         var transactionPoolOptions = CreateTransactionPoolOptions(configuration);

@@ -50,5 +50,9 @@ public interface ITransactionPool
         int maxCount,
         CancellationToken cancellationToken = default);
 
+    Task RemoveAsync(
+        IReadOnlyList<Transaction> transactions,
+        CancellationToken cancellationToken = default);
+
     TransactionPoolSnapshot GetSnapshot();
 }

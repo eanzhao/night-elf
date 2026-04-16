@@ -161,6 +161,55 @@ public sealed class MemoryTransactionPool : ITransactionPool
         }
     }
 
+    public Task RemoveAsync(
+        IReadOnlyList<Transaction> transactions,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(transactions);
+
+        if (transactions.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var transactionIds = transactions
+            .Select(static transaction =>
+            {
+                ArgumentNullException.ThrowIfNull(transaction);
+                return transaction.GetTransactionId();
+            })
+            .ToHashSet(StringComparer.Ordinal);
+
+        lock (_lock)
+        {
+            if (transactionIds.Count == 0 || _queue.Count == 0)
+            {
+                return Task.CompletedTask;
+            }
+
+            var remainingQueue = new Queue<QueuedTransaction>(_queue.Count);
+            while (_queue.Count > 0)
+            {
+                var queuedTransaction = _queue.Dequeue();
+                if (transactionIds.Contains(queuedTransaction.TransactionId))
+                {
+                    _queuedById.Remove(queuedTransaction.TransactionId);
+                    continue;
+                }
+
+                remainingQueue.Enqueue(queuedTransaction);
+            }
+
+            while (remainingQueue.Count > 0)
+            {
+                _queue.Enqueue(remainingQueue.Dequeue());
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
     private async Task<ReferenceValidationResult> ValidateReferenceBlockAsync(
         Transaction transaction,
         CancellationToken cancellationToken)

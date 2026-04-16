@@ -12,20 +12,38 @@ public sealed class TransactionSubmissionService
     private readonly ITransactionPool _transactionPool;
     private readonly ITransactionResultStore _transactionResultStore;
     private readonly INonCriticalEventBus _eventBus;
+    private readonly ITransactionRelayService _transactionRelayService;
 
     public TransactionSubmissionService(
         ITransactionPool transactionPool,
         ITransactionResultStore transactionResultStore,
-        INonCriticalEventBus eventBus)
+        INonCriticalEventBus eventBus,
+        ITransactionRelayService transactionRelayService)
     {
         _transactionPool = transactionPool ?? throw new ArgumentNullException(nameof(transactionPool));
         _transactionResultStore = transactionResultStore ?? throw new ArgumentNullException(nameof(transactionResultStore));
         _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
+        _transactionRelayService = transactionRelayService ?? throw new ArgumentNullException(nameof(transactionRelayService));
     }
 
     public async Task<TransactionResult> SubmitAsync(
         Transaction request,
         CancellationToken cancellationToken = default)
+    {
+        return await SubmitCoreAsync(request, relayToPeers: true, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<TransactionResult> SubmitRelayedAsync(
+        Transaction request,
+        CancellationToken cancellationToken = default)
+    {
+        return await SubmitCoreAsync(request, relayToPeers: false, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<TransactionResult> SubmitCoreAsync(
+        Transaction request,
+        bool relayToPeers,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -51,6 +69,11 @@ public sealed class TransactionSubmissionService
         if (submitResult.IsAccepted)
         {
             await _transactionResultStore.RecordPendingAsync(request, cancellationToken).ConfigureAwait(false);
+            if (relayToPeers)
+            {
+                await _transactionRelayService.RelayAsync(request, cancellationToken).ConfigureAwait(false);
+            }
+
             var storedResult = await _transactionResultStore.GetAsync(transactionId, cancellationToken).ConfigureAwait(false);
             return storedResult is null
                 ? TransactionResultProtoConverter.CreatePending(transactionId)
