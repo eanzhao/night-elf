@@ -22,7 +22,7 @@ public sealed class TieredStateCache : IStateCache
         set
         {
             ValidateKey(key);
-            _originalValues[key] = value;
+            _currentValues[key] = value;
             _parent[key] = value;
         }
     }
@@ -31,14 +31,12 @@ public sealed class TieredStateCache : IStateCache
     {
         ValidateKey(key);
 
-        var originalFound = TryGetOriginalValue(key, out value);
-        if (_currentValues.TryGetValue(key, out var currentValue))
+        if (_currentValues.TryGetValue(key, out value))
         {
-            value = currentValue;
             return true;
         }
 
-        return originalFound;
+        return TryGetOriginalValue(key, out value);
     }
 
     public void Update(IReadOnlyDictionary<string, byte[]?> changes)

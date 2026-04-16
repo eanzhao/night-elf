@@ -41,7 +41,14 @@ public sealed class ContractSandboxExecutionService
         ArgumentNullException.ThrowIfNull(contract);
 
         return ExecuteAsync(
-            _ => Task.Run(() => executor.Execute(contract, invocation, executionContext), CancellationToken.None),
+            ct =>
+            {
+                if (executionContext is not null)
+                {
+                    executionContext.CancellationToken = ct;
+                }
+                return Task.Run(() => executor.Execute(contract, invocation, executionContext), ct);
+            },
             timeout,
             cancellationToken);
     }

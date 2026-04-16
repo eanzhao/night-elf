@@ -1,6 +1,8 @@
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 using Tsavorite.core;
 
@@ -20,7 +22,9 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
     private static readonly Encoding KeyEncoding = Encoding.UTF8;
 
     private readonly TsavoriteStore _store;
-    private bool _disposed;
+    private readonly KVSettings<SpanByte, SpanByte> _settings;
+    private readonly ConcurrentBag<TsavoriteSession> _sessionPool = new();
+    private int _disposed;
 
     public TsavoriteDatabase(TsavoriteDatabaseOptions<TContext> options)
     {
@@ -31,11 +35,11 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
         CheckpointPath = options.ResolveCheckpointPath();
         RemoveOutdatedCheckpoints = options.RemoveOutdatedCheckpoints;
 
-        var settings = CreateSettings(options);
+        _settings = CreateSettings(options);
         var storeFunctions = StoreFunctions<SpanByte, SpanByte>.Create();
 
         _store = new TsavoriteStore(
-            settings,
+            _settings,
             storeFunctions,
             static (allocatorSettings, functions) => new TsavoriteAllocator(allocatorSettings, functions));
     }
@@ -71,8 +75,15 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
         ThrowIfDisposed();
         ValidateKey(key);
 
-        using var session = CreateSession();
-        return await GetAsync(session.BasicContext, key, cancellationToken).ConfigureAwait(false);
+        var session = RentSession();
+        try
+        {
+            return await GetAsync(session.BasicContext, key, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            ReturnSession(session);
+        }
     }
 
     public async Task<IReadOnlyDictionary<string, byte[]?>> GetAllAsync(
@@ -82,16 +93,23 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(keys);
 
-        using var session = CreateSession();
-        var results = new Dictionary<string, byte[]?>(keys.Count, StringComparer.Ordinal);
-
-        foreach (var key in keys)
+        var session = RentSession();
+        try
         {
-            ValidateKey(key);
-            results[key] = await GetAsync(session.BasicContext, key, cancellationToken).ConfigureAwait(false);
-        }
+            var results = new Dictionary<string, byte[]?>(keys.Count, StringComparer.Ordinal);
 
-        return results;
+            foreach (var key in keys)
+            {
+                ValidateKey(key);
+                results[key] = await GetAsync(session.BasicContext, key, cancellationToken).ConfigureAwait(false);
+            }
+
+            return results;
+        }
+        finally
+        {
+            ReturnSession(session);
+        }
     }
 
     public async Task SetAsync(string key, byte[] value, CancellationToken cancellationToken = default)
@@ -100,8 +118,15 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
         ValidateKey(key);
         ArgumentNullException.ThrowIfNull(value);
 
-        using var session = CreateSession();
-        await SetAsync(session.BasicContext, key, value, cancellationToken).ConfigureAwait(false);
+        var session = RentSession();
+        try
+        {
+            await SetAsync(session.BasicContext, key, value, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            ReturnSession(session);
+        }
     }
 
     public async Task SetAllAsync(
@@ -111,13 +136,19 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(values);
 
-        using var session = CreateSession();
-
-        foreach (var pair in values)
+        var session = RentSession();
+        try
         {
-            ValidateKey(pair.Key);
-            ArgumentNullException.ThrowIfNull(pair.Value);
-            await SetAsync(session.BasicContext, pair.Key, pair.Value, cancellationToken).ConfigureAwait(false);
+            foreach (var pair in values)
+            {
+                ValidateKey(pair.Key);
+                ArgumentNullException.ThrowIfNull(pair.Value);
+                await SetAsync(session.BasicContext, pair.Key, pair.Value, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            ReturnSession(session);
         }
     }
 
@@ -126,8 +157,15 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
         ThrowIfDisposed();
         ValidateKey(key);
 
-        using var session = CreateSession();
-        await DeleteAsync(session.BasicContext, key, cancellationToken).ConfigureAwait(false);
+        var session = RentSession();
+        try
+        {
+            await DeleteAsync(session.BasicContext, key, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            ReturnSession(session);
+        }
     }
 
     public async Task DeleteAllAsync(
@@ -137,12 +175,18 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(keys);
 
-        using var session = CreateSession();
-
-        foreach (var key in keys)
+        var session = RentSession();
+        try
         {
-            ValidateKey(key);
-            await DeleteAsync(session.BasicContext, key, cancellationToken).ConfigureAwait(false);
+            foreach (var key in keys)
+            {
+                ValidateKey(key);
+                await DeleteAsync(session.BasicContext, key, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            ReturnSession(session);
         }
     }
 
@@ -151,8 +195,15 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
         ThrowIfDisposed();
         ValidateKey(key);
 
-        using var session = CreateSession();
-        return await ExistsAsync(session.BasicContext, key, cancellationToken).ConfigureAwait(false);
+        var session = RentSession();
+        try
+        {
+            return await ExistsAsync(session.BasicContext, key, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            ReturnSession(session);
+        }
     }
 
     public bool CanTakeIncrementalCheckpoint(CheckpointType checkpointType, out Guid checkpointToken)
@@ -221,13 +272,18 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
 
     public void Dispose()
     {
-        if (_disposed)
+        if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
         {
             return;
         }
 
+        while (_sessionPool.TryTake(out var session))
+        {
+            session.Dispose();
+        }
+
         _store.Dispose();
-        _disposed = true;
+        _settings.LogDevice?.Dispose();
     }
 
     private static KVSettings<SpanByte, SpanByte> CreateSettings(TsavoriteDatabaseOptions<TContext> options)
@@ -276,17 +332,33 @@ public sealed class TsavoriteDatabase<TContext> : IKeyValueDatabase<TContext>, I
         ArgumentException.ThrowIfNullOrEmpty(key);
     }
 
-    private TsavoriteSession CreateSession()
+    private TsavoriteSession RentSession()
     {
         ThrowIfDisposed();
+
+        if (_sessionPool.TryTake(out var session))
+        {
+            return session;
+        }
 
         return _store.NewSession<SpanByte, SpanByteAndMemory, int, TsavoriteSessionFunctions>(
             new TsavoriteSessionFunctions(MemoryPool<byte>.Shared));
     }
 
+    private void ReturnSession(TsavoriteSession session)
+    {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            session.Dispose();
+            return;
+        }
+
+        _sessionPool.Add(session);
+    }
+
     private void ThrowIfDisposed()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
     }
 
     private static async Task<byte[]?> GetAsync(

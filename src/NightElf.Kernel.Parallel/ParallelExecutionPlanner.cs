@@ -114,7 +114,12 @@ public sealed class ParallelExecutionPlanner
         for (var index = 0; index < transactions.Count; index += _options.OptimisticGroupSize)
         {
             var count = Math.Min(_options.OptimisticGroupSize, transactions.Count - index);
-            groups.Add(transactions.Skip(index).Take(count).ToArray());
+            var group = new ParallelTransaction[count];
+            for (var i = 0; i < count; i++)
+            {
+                group[i] = transactions[index + i];
+            }
+            groups.Add(group);
         }
 
         return groups;

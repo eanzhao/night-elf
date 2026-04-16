@@ -51,4 +51,6 @@ public sealed class ContractExecutionContext
     public string BlockHash { get; }
 
     public DateTimeOffset Timestamp { get; }
+
+    public CancellationToken CancellationToken { get; set; }
 }

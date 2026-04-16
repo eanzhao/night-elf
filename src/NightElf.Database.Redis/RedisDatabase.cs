@@ -5,7 +5,7 @@ public sealed class RedisDatabase<TContext> : IKeyValueDatabase<TContext>, IDisp
 {
     private readonly IRedisDatabaseClient _client;
     private readonly RedisDatabaseOptions<TContext> _options;
-    private bool _disposed;
+    private volatile bool _disposed;
 
     public RedisDatabase(IRedisDatabaseClient client, RedisDatabaseOptions<TContext> options)
     {

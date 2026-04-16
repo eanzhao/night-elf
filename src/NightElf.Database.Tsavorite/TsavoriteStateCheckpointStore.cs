@@ -4,7 +4,7 @@ using Tsavorite.core;
 
 namespace NightElf.Database.Tsavorite;
 
-public sealed class TsavoriteStateCheckpointStore<TContext> : IStateCheckpointStore<TContext>
+public sealed class TsavoriteStateCheckpointStore<TContext> : IStateCheckpointStore<TContext>, IDisposable
     where TContext : KeyValueDbContext<TContext>
 {
     private readonly SemaphoreSlim _mutex = new(1, 1);
@@ -204,7 +204,7 @@ public sealed class TsavoriteStateCheckpointStore<TContext> : IStateCheckpointSt
 
             var checkpoints = await LoadCatalogAsync(cancellationToken).ConfigureAwait(false);
             var retained = checkpoints
-                .Where(checkpoint => checkpoint.CreatedAtUtc <= descriptor.CreatedAtUtc)
+                .Where(checkpoint => checkpoint.BlockHeight <= descriptor.BlockHeight)
                 .OrderBy(checkpoint => checkpoint.BlockHeight)
                 .ThenBy(checkpoint => checkpoint.CreatedAtUtc)
                 .ToList();
@@ -234,6 +234,11 @@ public sealed class TsavoriteStateCheckpointStore<TContext> : IStateCheckpointSt
         {
             _mutex.Release();
         }
+    }
+
+    public void Dispose()
+    {
+        _mutex.Dispose();
     }
 
     private static void EnsureDisjointKeys(
@@ -327,6 +332,8 @@ public sealed class TsavoriteStateCheckpointStore<TContext> : IStateCheckpointSt
                     TsavoriteStateCheckpointStoreJsonSerializerContext.Default.TsavoriteStateCheckpointCatalog,
                     cancellationToken)
                 .ConfigureAwait(false);
+
+            await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
         File.Move(tempPath, MetadataPath, overwrite: true);

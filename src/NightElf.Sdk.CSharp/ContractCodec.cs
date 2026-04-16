@@ -9,7 +9,7 @@ public static class ContractCodec
         {
             return T.Decode(input);
         }
-        catch (Exception exception) when (exception is not ContractInputDecodeException)
+        catch (Exception exception) when (exception is not ContractInputDecodeException and not OperationCanceledException)
         {
             throw new ContractInputDecodeException(methodName, typeof(T), exception);
         }

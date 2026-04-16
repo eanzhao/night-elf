@@ -18,21 +18,35 @@ public sealed class ConflictDetectionService
             static _ => new HashSet<string>(StringComparer.Ordinal),
             StringComparer.Ordinal);
 
+        var writeKeySets = transactions.ToDictionary(
+            static t => t.TransactionId,
+            static t => t.Resources.WriteKeys.Count > 0 ? t.Resources.WriteKeys.ToHashSet(StringComparer.Ordinal) : null,
+            StringComparer.Ordinal);
+        var readKeySets = transactions.ToDictionary(
+            static t => t.TransactionId,
+            static t => t.Resources.ReadKeys.Count > 0 ? t.Resources.ReadKeys.ToHashSet(StringComparer.Ordinal) : null,
+            StringComparer.Ordinal);
+
         var conflicts = new List<TransactionConflict>();
         for (var i = 0; i < transactions.Count; i++)
         {
             for (var j = i + 1; j < transactions.Count; j++)
             {
-                if (!TryGetConflictKind(transactions[i], transactions[j], out var kind))
+                var left = transactions[i];
+                var right = transactions[j];
+                if (!TryGetConflictKind(
+                        writeKeySets[left.TransactionId], readKeySets[left.TransactionId],
+                        writeKeySets[right.TransactionId], readKeySets[right.TransactionId],
+                        out var kind))
                 {
                     continue;
                 }
 
-                adjacency[transactions[i].TransactionId].Add(transactions[j].TransactionId);
-                adjacency[transactions[j].TransactionId].Add(transactions[i].TransactionId);
+                adjacency[left.TransactionId].Add(right.TransactionId);
+                adjacency[right.TransactionId].Add(left.TransactionId);
                 conflicts.Add(new TransactionConflict(
-                    transactions[i].TransactionId,
-                    transactions[j].TransactionId,
+                    left.TransactionId,
+                    right.TransactionId,
                     kind));
             }
         }
@@ -53,11 +67,6 @@ public sealed class ConflictDetectionService
         var byId = transactions.ToDictionary(
             static transaction => transaction.TransactionId,
             static transaction => transaction,
-            StringComparer.Ordinal);
-
-        var conflictKeys = conflicts.ToLookup(
-            static conflict => CreateConflictKey(conflict.LeftTransactionId, conflict.RightTransactionId),
-            static conflict => conflict,
             StringComparer.Ordinal);
 
         var components = new List<ConflictComponent>();
@@ -119,41 +128,47 @@ public sealed class ConflictDetectionService
     }
 
     private static bool TryGetConflictKind(
-        ParallelTransaction left,
-        ParallelTransaction right,
+        HashSet<string>? leftWriteSet,
+        HashSet<string>? leftReadSet,
+        HashSet<string>? rightWriteSet,
+        HashSet<string>? rightReadSet,
         out TransactionConflictKind kind)
     {
-        if (Overlaps(left.Resources.WriteKeys, right.Resources.WriteKeys))
+        kind = default;
+        var found = false;
+
+        if (Overlaps(leftWriteSet, rightWriteSet))
         {
             kind = TransactionConflictKind.WriteWrite;
-            return true;
+            return true; // WriteWrite is the worst, no need to check further
         }
 
-        if (Overlaps(left.Resources.WriteKeys, right.Resources.ReadKeys))
+        if (Overlaps(leftWriteSet, rightReadSet))
         {
             kind = TransactionConflictKind.WriteRead;
-            return true;
+            found = true;
         }
 
-        if (Overlaps(left.Resources.ReadKeys, right.Resources.WriteKeys))
+        if (Overlaps(leftReadSet, rightWriteSet))
         {
-            kind = TransactionConflictKind.ReadWrite;
-            return true;
+            if (!found)
+            {
+                kind = TransactionConflictKind.ReadWrite;
+            }
+            found = true;
         }
 
-        kind = default;
-        return false;
+        return found;
     }
 
-    private static bool Overlaps(IReadOnlyList<string> left, IReadOnlyList<string> right)
+    private static bool Overlaps(HashSet<string>? leftSet, HashSet<string>? rightSet)
     {
-        if (left.Count == 0 || right.Count == 0)
+        if (leftSet is null || leftSet.Count == 0 || rightSet is null || rightSet.Count == 0)
         {
             return false;
         }
 
-        var leftSet = left.ToHashSet(StringComparer.Ordinal);
-        return right.Any(leftSet.Contains);
+        return rightSet.Any(leftSet.Contains);
     }
 
     private static string CreateConflictKey(string leftTransactionId, string rightTransactionId)

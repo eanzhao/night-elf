@@ -70,6 +70,14 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor NestedClassNotSupported = new(
+        id: "NE1008",
+        title: "Nested contract class",
+        messageFormat: "Contract class '{0}' is nested inside '{1}'. Nested contract classes are not supported",
+        category: "NightElf.SourceGen",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var contractMethods = context.SyntaxProvider.ForAttributeWithMetadataName(
@@ -167,6 +175,16 @@ public sealed class ContractDispatcherGenerator : IIncrementalGenerator
                         candidate.MethodSymbol.ToDisplayString()));
                 }
 
+                continue;
+            }
+
+            if (contractSymbol.ContainingType is not null)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    NestedClassNotSupported,
+                    contractSymbol.Locations.FirstOrDefault(),
+                    contractSymbol.Name,
+                    contractSymbol.ContainingType.Name));
                 continue;
             }
 

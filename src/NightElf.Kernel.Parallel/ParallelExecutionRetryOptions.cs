@@ -58,6 +58,10 @@ public sealed class ParallelExecutionRetryOptions
         var retryFactor = Math.Pow(RetryTimeoutMultiplier, roundNumber);
         var adaptiveFactor = 1.0d + (boundedConflictRatio * ConflictTimeoutBias);
         var ticks = InitialGroupTimeout.Ticks * retryFactor * adaptiveFactor;
+        if (!double.IsFinite(ticks) || ticks > TimeSpan.MaxValue.Ticks)
+        {
+            return TimeSpan.MaxValue;
+        }
 
         return TimeSpan.FromTicks(Math.Max(1L, (long)Math.Ceiling(ticks)));
     }

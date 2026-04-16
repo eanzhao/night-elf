@@ -2,11 +2,11 @@ namespace NightElf.Sdk.CSharp;
 
 public abstract class CSharpSmartContract
 {
-    private ContractExecutionContext? _executionContext;
+    private readonly ThreadLocal<ContractExecutionContext?> _executionContext = new();
 
     public virtual bool SupportsResourceExtraction => false;
 
-    protected ContractExecutionContext ExecutionContext => _executionContext ??
+    protected ContractExecutionContext ExecutionContext => _executionContext.Value ??
         throw new InvalidOperationException("The contract execution context has not been initialized.");
 
     protected ContractStateContext StateContext => ExecutionContext.State;
@@ -67,8 +67,8 @@ public abstract class CSharpSmartContract
 
     private byte[] DispatchWithinExecutionContext(ContractExecutionContext executionContext, Func<byte[]> dispatcher)
     {
-        var previousContext = _executionContext;
-        _executionContext = executionContext;
+        var previousContext = _executionContext.Value;
+        _executionContext.Value = executionContext;
 
         try
         {
@@ -76,7 +76,7 @@ public abstract class CSharpSmartContract
         }
         finally
         {
-            _executionContext = previousContext;
+            _executionContext.Value = previousContext;
         }
     }
 }

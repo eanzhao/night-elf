@@ -5,6 +5,23 @@ namespace NightElf.Runtime.CSharp;
 
 public sealed class ContractSandbox : AssemblyLoadContext
 {
+    private static readonly HashSet<string> DeniedPlatformAssemblies = new(StringComparer.Ordinal)
+    {
+        "System.Diagnostics.Process",
+        "System.Net.Http",
+        "System.Net.Sockets",
+        "System.Net.Security",
+        "System.Net.WebSockets",
+        "System.Net.Requests",
+        "System.Net.WebClient",
+        "System.IO.FileSystem",
+        "System.IO.Pipes",
+        "System.Reflection.Emit",
+        "System.Reflection.Emit.ILGeneration",
+        "System.Reflection.Emit.Lightweight",
+        "Microsoft.CSharp"
+    };
+
     private readonly ContractSandboxOptions _options;
     private readonly Dictionary<string, string> _allowedAssemblyPaths = new(StringComparer.Ordinal);
     private AssemblyDependencyResolver? _resolver;
@@ -45,7 +62,17 @@ public sealed class ContractSandbox : AssemblyLoadContext
     protected override Assembly? Load(AssemblyName assemblyName)
     {
         var simpleName = assemblyName.Name;
-        if (string.IsNullOrWhiteSpace(simpleName) || IsPlatformAssembly(simpleName))
+        if (string.IsNullOrWhiteSpace(simpleName))
+        {
+            return null;
+        }
+
+        if (DeniedPlatformAssemblies.Contains(simpleName))
+        {
+            throw new ContractAssemblyNotAllowedException(Name ?? ContractName, simpleName);
+        }
+
+        if (IsPlatformAssembly(simpleName))
         {
             return null;
         }

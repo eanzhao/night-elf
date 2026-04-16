@@ -6,7 +6,7 @@ public sealed class StackExchangeRedisDatabaseClient : IRedisDatabaseClient
 {
     private readonly ConnectionMultiplexer _connection;
     private readonly IDatabase _database;
-    private bool _disposed;
+    private volatile bool _disposed;
 
     public StackExchangeRedisDatabaseClient(RedisConnectionOptions options)
     {
