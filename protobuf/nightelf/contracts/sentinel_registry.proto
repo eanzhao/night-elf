@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package nightelf.contracts.system.sentinel_registry;
+
+import "aelf/core.proto";
+
+option csharp_namespace = "NightElf.Contracts.System.SentinelRegistry.Protobuf";
+
+enum MeteringAttestationKind {
+    METERING_ATTESTATION_KIND_UNSPECIFIED = 0;
+    METERING_ATTESTATION_KIND_HONEST = 1;
+    METERING_ATTESTATION_KIND_CHALLENGED = 2;
+    METERING_ATTESTATION_KIND_PENALIZED = 3;
+}
+
+message RegisterSentinelInput {
+    string node_id = 1;
+    int64 initial_stake = 2;
+    string endpoint_host = 3;
+    int32 endpoint_port = 4;
+}
+
+message ExitSentinelInput {
+    string node_id = 1;
+}
+
+message RecordComputationCreditInput {
+    string sentinel_node_id = 1;
+    aelf.Hash session_id = 2;
+    int64 weighted_tokens_served = 3;
+    MeteringAttestationKind attestation_kind = 4;
+}
+
+message AdvanceEpochInput {
+    int64 epoch_number = 1;
+}
+
+message UpdateGovernanceInput {
+    int64 max_session_token_budget = 1;
+    int64 max_session_duration_blocks = 2;
+    int64 min_sentinel_stake = 3;
+    int32 active_sentinel_count = 4;
+    int32 metering_challenge_window_blocks = 5;
+}
+
+message GetSentinelInput {
+    string node_id = 1;
+}
+
+message SentinelState {
+    string node_id = 1;
+    string owner_address = 2;
+    int64 stake = 3;
+    int64 computation_credits = 4;
+    int64 reputation_score = 5;
+    int64 sessions_served = 6;
+    int64 honest_attestations = 7;
+    int64 penalized_attestations = 8;
+    bool is_active = 9;
+    int64 registered_at_block_height = 10;
+    int64 last_epoch_participated = 11;
+    string endpoint_host = 12;
+    int32 endpoint_port = 13;
+}
+
+message EpochSnapshot {
+    int64 epoch_number = 1;
+    repeated string active_sentinel_node_ids = 2;
+    int64 total_computation_credits = 3;
+    int64 started_at_block_height = 4;
+}
+
+message GovernanceParameters {
+    int64 max_session_token_budget = 1;
+    int64 max_session_duration_blocks = 2;
+    int64 min_sentinel_stake = 3;
+    int32 active_sentinel_count = 4;
+    int32 metering_challenge_window_blocks = 5;
+}
+
+message SentinelRegistered {
+    string node_id = 1;
+    string owner_address = 2;
+    int64 stake = 3;
+    int64 block_height = 4;
+}
+
+message SentinelExited {
+    string node_id = 1;
+    int64 block_height = 2;
+    int64 returned_stake = 3;
+}
+
+message ComputationCreditRecorded {
+    string sentinel_node_id = 1;
+    aelf.Hash session_id = 2;
+    int64 weighted_tokens_served = 3;
+    int64 total_credits = 4;
+    MeteringAttestationKind attestation_kind = 5;
+}
+
+message EpochAdvanced {
+    int64 epoch_number = 1;
+    repeated string active_sentinel_node_ids = 2;
+    int64 block_height = 3;
+}
+
+// Internal: used to persist the list of registered sentinel node IDs.
+message SentinelNodeIdList {
+    repeated string node_ids = 1;
+}
