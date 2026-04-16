@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <NightElfSdkSourceGenProject>$(MSBuildThisFileDirectory)..\..\src\NightElf.Sdk.SourceGen\NightElf.Sdk.SourceGen.csproj</NightElfSdkSourceGenProject>
+    <NightElfSdkSourceGenAnalyzer>$(MSBuildThisFileDirectory)..\..\src\NightElf.Sdk.SourceGen\bin\$(Configuration)\netstandard2.0\NightElf.Sdk.SourceGen.dll</NightElfSdkSourceGenAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\NightElf.Sdk.CSharp\NightElf.Sdk.CSharp.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Analyzer Include="$(NightElfSdkSourceGenAnalyzer)" />
+  </ItemGroup>
+
+  <Target Name="BuildNightElfSdkSourceGen"
+          BeforeTargets="CoreCompile"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <MSBuild Projects="$(NightElfSdkSourceGenProject)"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);PublishAot=false" />
+  </Target>
+
+</Project>

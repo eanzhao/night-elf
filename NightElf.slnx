@@ -2,6 +2,9 @@
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/NightElf.Benchmarks/NightElf.Benchmarks.csproj" />
   </Folder>
+  <Folder Name="/contract/">
+    <Project Path="contract/NightElf.Contracts.System.TokenAotPrototype/NightElf.Contracts.System.TokenAotPrototype.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/NightElf.Core/NightElf.Core.csproj" />
     <Project Path="src/NightElf.Database.Hosting/NightElf.Database.Hosting.csproj" />
@@ -20,6 +23,7 @@
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/NightElf.Architecture.Tests/NightElf.Architecture.Tests.csproj" />
+    <Project Path="test/NightElf.Contracts.System.TokenAotPrototype.Tests/NightElf.Contracts.System.TokenAotPrototype.Tests.csproj" />
     <Project Path="test/NightElf.Database.Hosting.Tests/NightElf.Database.Hosting.Tests.csproj" />
     <Project Path="test/NightElf.Database.Tsavorite.Tests/NightElf.Database.Tsavorite.Tests.csproj" />
     <Project Path="test/NightElf.Kernel.Consensus.Tests/NightElf.Kernel.Consensus.Tests.csproj" />
@@ -32,5 +36,8 @@
     <Project Path="test/NightElf.Sdk.CSharp.Tests/NightElf.Sdk.CSharp.Tests.csproj" />
     <Project Path="test/NightElf.Sdk.SourceGen.Tests/NightElf.Sdk.SourceGen.Tests.csproj" />
     <Project Path="test/NightElf.Vrf.Tests/NightElf.Vrf.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/NightElf.Tools.SystemContractAotEvaluation/NightElf.Tools.SystemContractAotEvaluation.csproj" />
   </Folder>
 </Solution>

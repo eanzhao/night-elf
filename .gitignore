@@ -5,3 +5,4 @@ TestResults/
 .DS_Store
 BenchmarkDotNet.Artifacts/
 artifacts/benchmarks/
+artifacts/nativeaot/

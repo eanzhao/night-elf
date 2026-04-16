@@ -4,6 +4,8 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <IsAotCompatible>false</IsAotCompatible>
     <IsRoslynComponent>true</IsRoslynComponent>
+    <IsPublishable>false</IsPublishable>
+    <PublishAot>false</PublishAot>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <NoWarn>$(NoWarn);RS1032;RS2008</NoWarn>
   </PropertyGroup>
