@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
+    <PackageReference Include="Grpc.AspNetCore.HealthChecks" Version="2.71.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NightElf.Core\NightElf.Core.csproj" />
+    <ProjectReference Include="..\NightElf.Database.Hosting\NightElf.Database.Hosting.csproj" />
+    <ProjectReference Include="..\NightElf.Database.Tsavorite\NightElf.Database.Tsavorite.csproj" />
+    <ProjectReference Include="..\NightElf.Kernel.Consensus\NightElf.Kernel.Consensus.csproj" />
+    <ProjectReference Include="..\NightElf.Kernel.Core\NightElf.Kernel.Core.csproj" />
+    <ProjectReference Include="..\NightElf.Kernel.SmartContract\NightElf.Kernel.SmartContract.csproj" />
+    <ProjectReference Include="..\NightElf.OS.Network\NightElf.OS.Network.csproj" />
+    <ProjectReference Include="..\NightElf.Runtime.CSharp\NightElf.Runtime.CSharp.csproj" />
+    <ProjectReference Include="..\NightElf.Vrf\NightElf.Vrf.csproj" />
+  </ItemGroup>
+
+</Project>

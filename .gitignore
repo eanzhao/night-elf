@@ -6,3 +6,5 @@ TestResults/
 BenchmarkDotNet.Artifacts/
 artifacts/benchmarks/
 artifacts/nativeaot/
+artifacts/node/
+**/artifacts/node/

@@ -15,6 +15,7 @@
     <Project Path="src/NightElf.Kernel.Core/NightElf.Kernel.Core.csproj" />
     <Project Path="src/NightElf.Kernel.Parallel/NightElf.Kernel.Parallel.csproj" />
     <Project Path="src/NightElf.Kernel.SmartContract/NightElf.Kernel.SmartContract.csproj" />
+    <Project Path="src/NightElf.Launcher/NightElf.Launcher.csproj" />
     <Project Path="src/NightElf.OS.Network/NightElf.OS.Network.csproj" />
     <Project Path="src/NightElf.Runtime.CSharp/NightElf.Runtime.CSharp.csproj" />
     <Project Path="src/NightElf.Sdk.CSharp/NightElf.Sdk.CSharp.csproj" />
@@ -30,6 +31,7 @@
     <Project Path="test/NightElf.Kernel.Core.Tests/NightElf.Kernel.Core.Tests.csproj" />
     <Project Path="test/NightElf.Kernel.Parallel.Tests/NightElf.Kernel.Parallel.Tests.csproj" />
     <Project Path="test/NightElf.Kernel.SmartContract.Tests/NightElf.Kernel.SmartContract.Tests.csproj" />
+    <Project Path="test/NightElf.Launcher.Tests/NightElf.Launcher.Tests.csproj" />
     <Project Path="test/NightElf.OS.Network.Tests/NightElf.OS.Network.Tests.csproj" />
     <Project Path="test/NightElf.Phase1.Baseline.Tests/NightElf.Phase1.Baseline.Tests.csproj" />
     <Project Path="test/NightElf.Runtime.CSharp.Tests/NightElf.Runtime.CSharp.Tests.csproj" />
