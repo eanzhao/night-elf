@@ -28,6 +28,7 @@ public sealed class ConsensusEngineOptions
         switch (ResolveEngineKind())
         {
             case ConsensusEngineKind.Aedpos:
+                Aedpos.ApplyDefaults();
                 Aedpos.Validate();
                 return;
             default:
@@ -48,11 +49,20 @@ public sealed class AedposConsensusOptions
 
     public int IrreversibleBlockDistance { get; set; } = 8;
 
-    public void Validate()
+    public void ApplyDefaults()
     {
         if (Validators.Count == 0)
         {
             Validators = [.. DefaultValidators];
+        }
+    }
+
+    public void Validate()
+    {
+        if (Validators.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "NightElf:Consensus:Aedpos:Validators must not be empty. Call ApplyDefaults() first or provide validators.");
         }
 
         var seen = new HashSet<string>(StringComparer.Ordinal);

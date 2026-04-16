@@ -13,6 +13,7 @@ public sealed class ConsensusEngineServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         var configuration = BuildConfiguration(new Dictionary<string, string?>());
 
+        services.AddVrfProvider(new VrfProviderOptions());
         services.AddConsensusEngine(configuration);
 
         using var serviceProvider = services.BuildServiceProvider();
@@ -39,6 +40,7 @@ public sealed class ConsensusEngineServiceCollectionExtensionsTests
             ["NightElf:Consensus:Aedpos:IrreversibleBlockDistance"] = "11"
         });
 
+        services.AddVrfProvider(new VrfProviderOptions());
         services.AddConsensusEngine(configuration);
 
         using var serviceProvider = services.BuildServiceProvider();

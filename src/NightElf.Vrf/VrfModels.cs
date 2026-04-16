@@ -13,6 +13,10 @@ public sealed class VrfInput
         ArgumentException.ThrowIfNullOrWhiteSpace(PublicKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(Domain);
         ArgumentNullException.ThrowIfNull(Seed);
+        if (Seed.Length == 0)
+        {
+            throw new ArgumentException("VRF seed must not be empty.", nameof(Seed));
+        }
     }
 }
 

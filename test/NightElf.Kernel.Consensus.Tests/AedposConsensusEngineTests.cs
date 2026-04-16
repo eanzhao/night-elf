@@ -216,7 +216,7 @@ public sealed class AedposConsensusEngineTests
             Validators = ["validator-a", "validator-b", "validator-c"],
             BlocksPerRound = 3,
             IrreversibleBlockDistance = 5
-        });
+        }, new DeterministicVrfProvider());
     }
 
     private sealed class RecordingVrfProvider : IVrfProvider

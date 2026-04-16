@@ -12,25 +12,48 @@ public sealed class AedposConsensusEngine : IConsensusEngine
 
     private readonly AedposConsensusOptions _options;
     private readonly IVrfProvider _vrfProvider;
+    private readonly Lock _stateLock = new();
+
+    private BlockReference? _lastCommittedBlock;
+    private BlockReference? _lastIrreversibleBlock;
+    private long _currentRoundNumber;
+    private long _currentTermNumber;
 
     public AedposConsensusEngine(
         AedposConsensusOptions? options = null,
         IVrfProvider? vrfProvider = null)
     {
         _options = options ?? new AedposConsensusOptions();
+        _options.ApplyDefaults();
         _options.Validate();
-        _vrfProvider = vrfProvider ?? new DeterministicVrfProvider();
+        _vrfProvider = vrfProvider ?? throw new ArgumentNullException(nameof(vrfProvider));
     }
 
     public ConsensusEngineKind Kind => ConsensusEngineKind.Aedpos;
 
-    public BlockReference? LastCommittedBlock { get; private set; }
+    public BlockReference? LastCommittedBlock
+    {
+        get { lock (_stateLock) { return _lastCommittedBlock; } }
+        private set { lock (_stateLock) { _lastCommittedBlock = value; } }
+    }
 
-    public BlockReference? LastIrreversibleBlock { get; private set; }
+    public BlockReference? LastIrreversibleBlock
+    {
+        get { lock (_stateLock) { return _lastIrreversibleBlock; } }
+        private set { lock (_stateLock) { _lastIrreversibleBlock = value; } }
+    }
 
-    public long CurrentRoundNumber { get; private set; }
+    public long CurrentRoundNumber
+    {
+        get { lock (_stateLock) { return _currentRoundNumber; } }
+        private set { lock (_stateLock) { _currentRoundNumber = value; } }
+    }
 
-    public long CurrentTermNumber { get; private set; }
+    public long CurrentTermNumber
+    {
+        get { lock (_stateLock) { return _currentTermNumber; } }
+        private set { lock (_stateLock) { _currentTermNumber = value; } }
+    }
 
     public async Task<ConsensusBlockProposal> ProposeBlockAsync(
         ConsensusContext context,
@@ -172,10 +195,14 @@ public sealed class AedposConsensusEngine : IConsensusEngine
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(context.Block);
 
-        LastCommittedBlock = context.Block.Block;
-        LastIrreversibleBlock = context.LastIrreversibleBlock;
-        CurrentRoundNumber = context.Block.RoundNumber;
-        CurrentTermNumber = context.Block.TermNumber;
+        lock (_stateLock)
+        {
+            _lastCommittedBlock = context.Block.Block;
+            _lastIrreversibleBlock = context.LastIrreversibleBlock;
+            _currentRoundNumber = context.Block.RoundNumber;
+            _currentTermNumber = context.Block.TermNumber;
+        }
+
         return Task.CompletedTask;
     }
 

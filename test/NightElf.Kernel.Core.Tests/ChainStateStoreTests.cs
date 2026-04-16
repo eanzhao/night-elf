@@ -261,4 +261,80 @@ public sealed class ChainStateStoreTests
 
         Assert.Contains("No LIB checkpoint", exception.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task RecoverToLatestLibCheckpoint_Should_Handle_Forks_At_Multiple_Heights()
+    {
+        using var harness = new ChainStateRecoveryHarness(
+            retainedCheckpointCount: 4,
+            removeOutdatedCheckpoints: false);
+
+        var lib10 = await harness.ApplyBlockAsync(
+            10, "block-010-a",
+            balance: "balance-10", stateRoot: "root-10",
+            primaryIndex: "tx-alpha:block-010-a",
+            secondaryIndex: "tx-stale:block-010-a");
+        await harness.AdvanceLibAsync(lib10);
+
+        // Fork at height 11: two competing blocks
+        await harness.ApplyBlockAsync(
+            11, "block-011-a",
+            balance: "balance-11a", stateRoot: "root-11a",
+            primaryIndex: "tx-alpha:block-011-a");
+        await harness.ApplyBlockAsync(
+            11, "block-011-b",
+            balance: "balance-11b", stateRoot: "root-11b",
+            primaryIndex: "tx-alpha:block-011-b");
+
+        // Fork at height 12: two competing blocks (on different branch-a continuations)
+        await harness.ApplyBlockAsync(
+            12, "block-012-a",
+            balance: "balance-12a", stateRoot: "root-12a",
+            primaryIndex: "tx-alpha:block-012-a");
+        await harness.ApplyBlockAsync(
+            12, "block-012-b",
+            balance: "balance-12b", stateRoot: "root-12b",
+            primaryIndex: "tx-alpha:block-012-b",
+            deleteSecondaryIndex: true);
+
+        // Fork at height 13: two competing blocks
+        await harness.ApplyBlockAsync(
+            13, "block-013-a",
+            balance: "balance-13a", stateRoot: "root-13a",
+            primaryIndex: "tx-alpha:block-013-a");
+        await harness.ApplyBlockAsync(
+            13, "block-013-b",
+            balance: "balance-13b", stateRoot: "root-13b",
+            primaryIndex: "tx-alpha:block-013-b",
+            deleteSecondaryIndex: true);
+
+        // Recovery should roll back to LIB at height 10
+        await harness.ChainStateStore.RecoverToLatestLibCheckpointAsync();
+
+        await harness.AssertConsistentSnapshotAsync(
+            lib10,
+            expectedBalance: "balance-10",
+            expectedStateRoot: "root-10",
+            expectedPrimaryIndex: "tx-alpha:block-010-a",
+            expectedSecondaryIndex: "tx-stale:block-010-a");
+    }
+
+    [Fact]
+    public async Task RecoverToLatestLibCheckpoint_Should_Respect_Cancellation()
+    {
+        using var harness = new ChainStateRecoveryHarness();
+
+        var lib10 = await harness.ApplyBlockAsync(
+            10, "block-010-a",
+            balance: "balance-10", stateRoot: "root-10",
+            primaryIndex: "tx-alpha:block-010-a",
+            secondaryIndex: "tx-stale:block-010-a");
+        await harness.AdvanceLibAsync(lib10);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => harness.ChainStateStore.RecoverToLatestLibCheckpointAsync(cts.Token));
+    }
 }

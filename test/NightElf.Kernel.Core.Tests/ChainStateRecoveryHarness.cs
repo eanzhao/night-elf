@@ -117,11 +117,12 @@ internal sealed class ChainStateRecoveryHarness : IDisposable
 
     public void Dispose()
     {
+        CheckpointStore.Dispose();
         Database.Dispose();
 
         if (Directory.Exists(_rootPath))
         {
-            Directory.Delete(_rootPath, recursive: true);
+            try { Directory.Delete(_rootPath, recursive: true); } catch { /* best-effort cleanup */ }
         }
     }
 

@@ -65,9 +65,6 @@ public static class ConsensusEngineServiceCollectionExtensions
 
         options.Validate();
 
-        services.TryAddSingleton<VrfProviderOptions>(_ => new VrfProviderOptions());
-        services.TryAddSingleton<IVrfProvider>(serviceProvider =>
-            new DeterministicVrfProvider(serviceProvider.GetRequiredService<VrfProviderOptions>()));
         services.TryAddSingleton(options);
         services.TryAddSingleton<IConsensusEngine>(serviceProvider => CreateConsensusEngine(
             serviceProvider.GetRequiredService<ConsensusEngineOptions>(),

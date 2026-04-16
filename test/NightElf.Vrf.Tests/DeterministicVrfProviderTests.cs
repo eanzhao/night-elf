@@ -57,6 +57,59 @@ public sealed class DeterministicVrfProviderTests
     }
 
     [Fact]
+    public async Task Verify_Should_Fail_For_Tampered_Proof_With_Same_Length()
+    {
+        var provider = new DeterministicVrfProvider();
+        var input = new VrfInput
+        {
+            PublicKey = "validator-c",
+            Domain = "aedpos:12:1:3",
+            Seed = [5, 6, 7]
+        };
+
+        var evaluation = await provider.EvaluateAsync(input);
+
+        // Flip one byte in the proof (same length, different content)
+        var tamperedProof = evaluation.Proof.ToArray();
+        tamperedProof[0] ^= 0xFF;
+
+        var verified = await provider.VerifyAsync(new VrfVerificationContext
+        {
+            Input = input,
+            Proof = tamperedProof,
+            Randomness = evaluation.Randomness
+        });
+
+        Assert.False(verified);
+    }
+
+    [Fact]
+    public async Task Verify_Should_Fail_For_Tampered_Randomness()
+    {
+        var provider = new DeterministicVrfProvider();
+        var input = new VrfInput
+        {
+            PublicKey = "validator-d",
+            Domain = "aedpos:14:2:1",
+            Seed = [10, 20, 30]
+        };
+
+        var evaluation = await provider.EvaluateAsync(input);
+
+        var tamperedRandomness = evaluation.Randomness.ToArray();
+        tamperedRandomness[^1] ^= 0x01;
+
+        var verified = await provider.VerifyAsync(new VrfVerificationContext
+        {
+            Input = input,
+            Proof = evaluation.Proof,
+            Randomness = tamperedRandomness
+        });
+
+        Assert.False(verified);
+    }
+
+    [Fact]
     public void AddVrfProvider_Should_Register_Configured_Deterministic_Provider()
     {
         var services = new ServiceCollection();
