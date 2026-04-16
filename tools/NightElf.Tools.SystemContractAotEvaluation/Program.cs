@@ -70,6 +70,7 @@ internal static class Program
             var firstDispatch = Measure(() => executor.Execute(contract, mintInvocation));
             var balance = BalanceOutput.Decode(executor.Execute(contract, balanceInvocation)).Amount;
             var resources = contract.DescribeResources(balanceInvocation);
+            var mintResources = contract.DescribeResources(mintInvocation);
             var warmLoop = Measure(() =>
             {
                 for (var index = 0; index < warmIterations; index++)
@@ -87,7 +88,7 @@ internal static class Program
                 FinalBalance: balance,
                 SupportsResourceExtraction: contract.SupportsResourceExtraction,
                 ReadKeys: resources.ReadKeys,
-                WriteKeys: resources.WriteKeys,
+                WriteKeys: mintResources.WriteKeys,
                 Failure: null);
         }
         catch (Exception exception)
@@ -157,6 +158,7 @@ internal static class Program
                 var firstDispatch = Measure(() => executor.Execute(contract, mintInvocation));
                 var balance = BalanceOutput.Decode(executor.Execute(contract, balanceInvocation)).Amount;
                 var resources = contract.DescribeResources(balanceInvocation);
+                var mintResources = contract.DescribeResources(mintInvocation);
                 var warmLoop = Measure(() =>
                 {
                     for (var index = 0; index < warmIterations; index++)
@@ -174,7 +176,7 @@ internal static class Program
                     WarmAverageNanoseconds: warmLoop.TotalMilliseconds * 1_000_000d / warmIterations,
                     FinalBalance: balance,
                     ReadKeys: resources.ReadKeys.ToArray(),
-                    WriteKeys: resources.WriteKeys.ToArray(),
+                    WriteKeys: mintResources.WriteKeys.ToArray(),
                     ExceptionType: null,
                     Failure: null,
                     Summary: "Managed IL assembly loaded successfully through the current collectible AssemblyLoadContext sandbox.");

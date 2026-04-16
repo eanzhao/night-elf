@@ -15,7 +15,7 @@ public sealed class QuicTransport : INetworkTransport
     private readonly QuicTransportOptions _options;
     private readonly IQuicCredentialProvider _credentialProvider;
     private readonly QuicConnectionManager _connectionManager;
-    private readonly ConcurrentBag<Task> _connectionTasks = [];
+    private readonly List<Task> _connectionTasks = [];
 
     private QuicListener? _listener;
     private INetworkMessageSink? _messageSink;
@@ -138,6 +138,16 @@ public sealed class QuicTransport : INetworkTransport
         if (_acceptLoopCancellation is not null)
         {
             _acceptLoopCancellation.Cancel();
+        }
+
+        if (_acceptLoopTask is not null)
+        {
+            await IgnoreShutdownAsync(_acceptLoopTask).ConfigureAwait(false);
+            _acceptLoopTask = null;
+        }
+
+        if (_acceptLoopCancellation is not null)
+        {
             _acceptLoopCancellation.Dispose();
             _acceptLoopCancellation = null;
         }
@@ -146,12 +156,6 @@ public sealed class QuicTransport : INetworkTransport
         {
             await _listener.DisposeAsync().ConfigureAwait(false);
             _listener = null;
-        }
-
-        if (_acceptLoopTask is not null)
-        {
-            await IgnoreShutdownAsync(_acceptLoopTask).ConfigureAwait(false);
-            _acceptLoopTask = null;
         }
 
         await Task.WhenAll(_connectionTasks.ToArray()).ConfigureAwait(false);
@@ -204,12 +208,14 @@ public sealed class QuicTransport : INetworkTransport
 
             var connectionTask = HandleConnectionAsync(connection, cancellationToken);
             _connectionTasks.Add(connectionTask);
+            _connectionTasks.RemoveAll(static t => t.IsCompleted);
         }
     }
 
     private async Task HandleConnectionAsync(QuicConnection connection, CancellationToken cancellationToken)
     {
         await using var ownedConnection = connection;
+        var streamTasks = new List<Task>();
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -224,8 +230,10 @@ public sealed class QuicTransport : INetworkTransport
                 break;
             }
 
-            await HandleStreamAsync(connection, stream, cancellationToken).ConfigureAwait(false);
+            streamTasks.Add(HandleStreamAsync(connection, stream, cancellationToken));
         }
+
+        await Task.WhenAll(streamTasks).ConfigureAwait(false);
     }
 
     private async Task HandleStreamAsync(
@@ -340,7 +348,7 @@ public sealed class QuicTransport : INetworkTransport
             TransportKind = Kind,
             Scenario = envelope.Scenario,
             TargetNodeId = remoteNode.NodeId,
-            BytesSent = envelope.Payload.Length
+            BytesSent = NetworkEnvelopeSerializer.Serialize(envelope).Length
         };
     }
 

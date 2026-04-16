@@ -41,12 +41,12 @@ public sealed class QuicConnectionManager : IAsyncDisposable
         var lazyConnection = _connections.GetOrAdd(
             key,
             _ => new Lazy<Task<QuicConnection>>(
-                () => ConnectCoreAsync(remoteNode, protocol, cancellationToken),
+                () => ConnectCoreAsync(remoteNode, protocol, CancellationToken.None),
                 LazyThreadSafetyMode.ExecutionAndPublication));
 
         try
         {
-            return await lazyConnection.Value.ConfigureAwait(false);
+            return await lazyConnection.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
         catch
         {

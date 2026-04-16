@@ -13,6 +13,7 @@ public sealed class ChannelBlockProcessingPipeline : IBlockProcessingPipeline
     private readonly INonCriticalEventBus _nonCriticalEventBus;
     private readonly BlockProcessingPipelineOptions _options;
 
+    private CancellationTokenSource? _workerCancellation;
     private Task? _workerTask;
     private bool _started;
     private bool _stopRequested;
@@ -53,7 +54,9 @@ public sealed class ChannelBlockProcessingPipeline : IBlockProcessingPipeline
                 throw new InvalidOperationException("Block processing pipeline cannot be started after stop was requested.");
             }
 
-            _workerTask = Task.Run(ProcessLoopAsync, CancellationToken.None);
+            _workerCancellation = new CancellationTokenSource();
+            var token = _workerCancellation.Token;
+            _workerTask = Task.Run(() => ProcessLoopAsync(token), CancellationToken.None);
             _started = true;
         }
 
@@ -71,9 +74,16 @@ public sealed class ChannelBlockProcessingPipeline : IBlockProcessingPipeline
         EnsureStarted();
 
         var completion = new TaskCompletionSource<BlockProcessingResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        await _queue.Writer
-            .WriteAsync(new QueuedBlockProcessingItem(request, completion), cancellationToken)
-            .ConfigureAwait(false);
+        try
+        {
+            await _queue.Writer
+                .WriteAsync(new QueuedBlockProcessingItem(request, completion), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (ChannelClosedException)
+        {
+            throw new InvalidOperationException("Block processing pipeline is stopping and cannot accept new blocks.");
+        }
 
         var backlogCount = Interlocked.Increment(ref _backlogCount);
         var enqueuedCount = Interlocked.Increment(ref _enqueuedCount);
@@ -98,7 +108,7 @@ public sealed class ChannelBlockProcessingPipeline : IBlockProcessingPipeline
         return new BlockProcessingPipelineSnapshot
         {
             Capacity = _options.Capacity,
-            BacklogCount = Volatile.Read(ref _backlogCount),
+            BacklogCount = Math.Max(0, Volatile.Read(ref _backlogCount)),
             EnqueuedCount = Interlocked.Read(ref _enqueuedCount),
             ProcessedCount = Interlocked.Read(ref _processedCount),
             FailedCount = Interlocked.Read(ref _failedCount),
@@ -124,6 +134,7 @@ public sealed class ChannelBlockProcessingPipeline : IBlockProcessingPipeline
             {
                 _stopRequested = true;
                 _queue.Writer.TryComplete();
+                _workerCancellation?.Cancel();
                 workerTask = _workerTask;
             }
         }
@@ -144,17 +155,21 @@ public sealed class ChannelBlockProcessingPipeline : IBlockProcessingPipeline
         {
             // Dispose is cleanup-only. Callers should observe pipeline faults from the ticket or StopAsync.
         }
+        finally
+        {
+            _workerCancellation?.Dispose();
+        }
     }
 
-    private async Task ProcessLoopAsync()
+    private async Task ProcessLoopAsync(CancellationToken cancellationToken)
     {
-        await foreach (var item in _queue.Reader.ReadAllAsync().ConfigureAwait(false))
+        await foreach (var item in _queue.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {
             var backlogCount = Interlocked.Decrement(ref _backlogCount);
 
             try
             {
-                var result = await ProcessItemAsync(item.Request).ConfigureAwait(false);
+                var result = await ProcessItemAsync(item.Request, cancellationToken).ConfigureAwait(false);
                 Interlocked.Increment(ref _processedCount);
                 Volatile.Write(ref _lastProcessedBlock, item.Request.Block);
                 item.Completion.TrySetResult(result);
@@ -198,19 +213,20 @@ public sealed class ChannelBlockProcessingPipeline : IBlockProcessingPipeline
         }
     }
 
-    private async Task<BlockProcessingResult> ProcessItemAsync(BlockProcessingRequest request)
+    private async Task<BlockProcessingResult> ProcessItemAsync(BlockProcessingRequest request, CancellationToken cancellationToken)
     {
-        await _chainStateStore.SetBestChainAsync(request.Block).ConfigureAwait(false);
+        await _chainStateStore.SetBestChainAsync(request.Block, cancellationToken).ConfigureAwait(false);
         await _chainStateStore.ApplyChangesAsync(
                 request.Block,
                 request.Writes,
-                request.Deletes)
+                request.Deletes,
+                cancellationToken)
             .ConfigureAwait(false);
 
         StateCheckpointDescriptor? checkpoint = null;
         if (request.AdvanceLibCheckpoint)
         {
-            checkpoint = await _chainStateStore.AdvanceLibCheckpointAsync(request.Block).ConfigureAwait(false);
+            checkpoint = await _chainStateStore.AdvanceLibCheckpointAsync(request.Block, cancellationToken).ConfigureAwait(false);
         }
 
         var notification = new BlockSyncNotification
@@ -222,7 +238,7 @@ public sealed class ChannelBlockProcessingPipeline : IBlockProcessingPipeline
             AdvancedLibCheckpoint = request.AdvanceLibCheckpoint
         };
 
-        await _syncNotifier.NotifyBlockAcceptedAsync(notification).ConfigureAwait(false);
+        await _syncNotifier.NotifyBlockAcceptedAsync(notification, cancellationToken).ConfigureAwait(false);
 
         return new BlockProcessingResult
         {
