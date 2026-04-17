@@ -617,6 +617,338 @@ public sealed class SentinelRegistryContractTests
     }
 
     // ────────────────────────────────────────────
+    // Edge-case tests
+    // ────────────────────────────────────────────
+
+    [Fact]
+    public void RegisterSentinel_Should_Reject_Empty_NodeId()
+    {
+        using var harness = new ContractHarness();
+
+        Assert.Throws<ArgumentException>(
+            () => harness.Execute(
+                sender: "owner",
+                methodName: "RegisterSentinel",
+                payload: RegisterSentinelInput.Encode(new RegisterSentinelInput
+                {
+                    NodeId = "",
+                    InitialStake = 5000,
+                    EndpointHost = "10.0.0.1",
+                    EndpointPort = 8080
+                }),
+                transactionIndex: 0));
+    }
+
+    [Fact]
+    public void RegisterSentinel_Should_Reject_Zero_Stake()
+    {
+        using var harness = new ContractHarness();
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => harness.Execute(
+                sender: "owner",
+                methodName: "RegisterSentinel",
+                payload: RegisterSentinelInput.Encode(new RegisterSentinelInput
+                {
+                    NodeId = "node-zero-stake",
+                    InitialStake = 0,
+                    EndpointHost = "10.0.0.1",
+                    EndpointPort = 8080
+                }),
+                transactionIndex: 0));
+    }
+
+    [Fact]
+    public void RegisterSentinel_Should_Reject_Zero_Port()
+    {
+        using var harness = new ContractHarness();
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => harness.Execute(
+                sender: "owner",
+                methodName: "RegisterSentinel",
+                payload: RegisterSentinelInput.Encode(new RegisterSentinelInput
+                {
+                    NodeId = "node-zero-port",
+                    InitialStake = 5000,
+                    EndpointHost = "10.0.0.1",
+                    EndpointPort = 0
+                }),
+                transactionIndex: 0));
+    }
+
+    [Fact]
+    public void ExitSentinel_Should_Reject_Nonexistent_Sentinel()
+    {
+        using var harness = new ContractHarness();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => harness.Execute(
+                sender: "owner",
+                methodName: "ExitSentinel",
+                payload: ExitSentinelInput.Encode(new ExitSentinelInput
+                {
+                    NodeId = "ghost-node"
+                }),
+                transactionIndex: 0));
+
+        Assert.Contains("not found", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ExitSentinel_Should_Reject_Already_Exited_Sentinel()
+    {
+        using var harness = new ContractHarness();
+        var owner = "owner-double-exit";
+
+        harness.Execute(
+            sender: owner,
+            methodName: "RegisterSentinel",
+            payload: RegisterSentinelInput.Encode(new RegisterSentinelInput
+            {
+                NodeId = "node-double-exit",
+                InitialStake = 2000,
+                EndpointHost = "10.0.0.1",
+                EndpointPort = 8080
+            }),
+            transactionIndex: 0);
+
+        harness.Execute(
+            sender: owner,
+            methodName: "ExitSentinel",
+            payload: ExitSentinelInput.Encode(new ExitSentinelInput { NodeId = "node-double-exit" }),
+            transactionIndex: 1);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => harness.Execute(
+                sender: owner,
+                methodName: "ExitSentinel",
+                payload: ExitSentinelInput.Encode(new ExitSentinelInput { NodeId = "node-double-exit" }),
+                transactionIndex: 2));
+
+        Assert.Contains("already exited", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RecordComputationCredit_Should_Reject_Inactive_Sentinel()
+    {
+        using var harness = new ContractHarness();
+        var owner = "owner-inactive";
+
+        harness.Execute(
+            sender: owner,
+            methodName: "RegisterSentinel",
+            payload: RegisterSentinelInput.Encode(new RegisterSentinelInput
+            {
+                NodeId = "node-inactive",
+                InitialStake = 2000,
+                EndpointHost = "10.0.0.1",
+                EndpointPort = 8080
+            }),
+            transactionIndex: 0);
+
+        harness.Execute(
+            sender: owner,
+            methodName: "ExitSentinel",
+            payload: ExitSentinelInput.Encode(new ExitSentinelInput { NodeId = "node-inactive" }),
+            transactionIndex: 1);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => harness.Execute(
+                sender: harness.AdminAddress,
+                methodName: "RecordComputationCredit",
+                payload: RecordComputationCreditInput.Encode(new RecordComputationCreditInput
+                {
+                    SentinelNodeId = "node-inactive",
+                    SessionId = "FF99000000000000000000000000000000000000000000000000000000000000".ToProtoHash(),
+                    WeightedTokensServed = 100,
+                    AttestationKind = MeteringAttestationKind.Honest
+                }),
+                transactionIndex: 2));
+
+        Assert.Contains("not active", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RecordComputationCredit_Penalized_Should_Drive_Reputation_Negative()
+    {
+        using var harness = new ContractHarness();
+        RegisterSentinel(harness, "node-neg", "owner-neg", 0);
+
+        // One honest attestation: +500 reputation
+        RecordCredit(harness, "node-neg", 1, 500, MeteringAttestationKind.Honest);
+
+        // One penalty: -1000 * 2 = -2000 reputation. Net = 500 - 2000 = -1500
+        RecordCredit(harness, "node-neg", 2, 1000, MeteringAttestationKind.Penalized);
+
+        var state = SentinelState.Decode(harness.GetState("sentinel:node-neg"));
+
+        Assert.Equal(-1500, state.ReputationScore);
+        Assert.Equal(1, state.HonestAttestations);
+        Assert.Equal(1, state.PenalizedAttestations);
+    }
+
+    [Fact]
+    public void RecordComputationCredit_Should_Reject_Unspecified_AttestationKind()
+    {
+        using var harness = new ContractHarness();
+        RegisterSentinel(harness, "node-unspec", "owner-unspec", 0);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => harness.Execute(
+                sender: harness.AdminAddress,
+                methodName: "RecordComputationCredit",
+                payload: RecordComputationCreditInput.Encode(new RecordComputationCreditInput
+                {
+                    SentinelNodeId = "node-unspec",
+                    SessionId = "FF01000000000000000000000000000000000000000000000000000000000000".ToProtoHash(),
+                    WeightedTokensServed = 100,
+                    AttestationKind = MeteringAttestationKind.Unspecified
+                }),
+                transactionIndex: 1));
+    }
+
+    [Fact]
+    public void AdvanceEpoch_Should_Reject_Same_Epoch_Number()
+    {
+        using var harness = new ContractHarness();
+        RegisterSentinel(harness, "node-epoch-dup", "owner", 0);
+
+        harness.Execute(
+            sender: harness.AdminAddress,
+            methodName: "AdvanceEpoch",
+            payload: AdvanceEpochInput.Encode(new AdvanceEpochInput { EpochNumber = 1 }),
+            transactionIndex: 1);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => harness.Execute(
+                sender: harness.AdminAddress,
+                methodName: "AdvanceEpoch",
+                payload: AdvanceEpochInput.Encode(new AdvanceEpochInput { EpochNumber = 1 }),
+                transactionIndex: 2));
+
+        Assert.Contains("must be greater", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AdvanceEpoch_Should_Apply_Deterministic_TieBreaking_By_NodeId()
+    {
+        using var harness = new ContractHarness();
+
+        // Register 3 sentinels with identical scores (0 reputation, 0 credits)
+        RegisterSentinel(harness, "node-c", "owner-c", 0);
+        RegisterSentinel(harness, "node-a", "owner-a", 1);
+        RegisterSentinel(harness, "node-b", "owner-b", 2);
+
+        // Set governance to select only 2
+        harness.Execute(
+            sender: harness.AdminAddress,
+            methodName: "UpdateGovernance",
+            payload: UpdateGovernanceInput.Encode(new UpdateGovernanceInput
+            {
+                MaxSessionTokenBudget = 1_000_000,
+                MaxSessionDurationBlocks = 100,
+                MinSentinelStake = 1000,
+                ActiveSentinelCount = 2,
+                MeteringChallengeWindowBlocks = 50
+            }),
+            transactionIndex: 3);
+
+        harness.Execute(
+            sender: harness.AdminAddress,
+            methodName: "AdvanceEpoch",
+            payload: AdvanceEpochInput.Encode(new AdvanceEpochInput { EpochNumber = 1 }),
+            transactionIndex: 4);
+
+        var epoch = EpochSnapshot.Decode(harness.GetState("epoch:current"));
+
+        // With equal scores, tie-break by lexicographic node ID (ascending)
+        Assert.Equal(2, epoch.ActiveSentinelNodeIds.Count);
+        Assert.Equal("node-a", epoch.ActiveSentinelNodeIds[0]);
+        Assert.Equal("node-b", epoch.ActiveSentinelNodeIds[1]);
+    }
+
+    [Fact]
+    public void AdvanceEpoch_Should_Skip_Inactive_Sentinels_In_Selection()
+    {
+        using var harness = new ContractHarness();
+
+        RegisterSentinel(harness, "node-active", "owner-1", 0);
+        RegisterSentinel(harness, "node-exited", "owner-2", 1);
+
+        // Give the exited sentinel higher reputation
+        RecordCredit(harness, "node-exited", 1, 10000, MeteringAttestationKind.Honest);
+
+        // Exit it
+        harness.Execute(
+            sender: "owner-2",
+            methodName: "ExitSentinel",
+            payload: ExitSentinelInput.Encode(new ExitSentinelInput { NodeId = "node-exited" }),
+            transactionIndex: 3);
+
+        harness.Execute(
+            sender: harness.AdminAddress,
+            methodName: "AdvanceEpoch",
+            payload: AdvanceEpochInput.Encode(new AdvanceEpochInput { EpochNumber = 1 }),
+            transactionIndex: 4);
+
+        var epoch = EpochSnapshot.Decode(harness.GetState("epoch:current"));
+
+        Assert.Single(epoch.ActiveSentinelNodeIds);
+        Assert.Equal("node-active", epoch.ActiveSentinelNodeIds[0]);
+    }
+
+    [Fact]
+    public void GetSentinel_Should_Reject_Nonexistent_NodeId()
+    {
+        using var harness = new ContractHarness();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => harness.Execute(
+                sender: "anyone",
+                methodName: "GetSentinel",
+                payload: GetSentinelInput.Encode(new GetSentinelInput { NodeId = "ghost" }),
+                transactionIndex: 0));
+
+        Assert.Contains("not found", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void RegisterSentinel(ContractHarness harness, string nodeId, string owner, int txIndex)
+    {
+        harness.Execute(
+            sender: owner,
+            methodName: "RegisterSentinel",
+            payload: RegisterSentinelInput.Encode(new RegisterSentinelInput
+            {
+                NodeId = nodeId,
+                InitialStake = 5000,
+                EndpointHost = "10.0.0.1",
+                EndpointPort = 8080
+            }),
+            transactionIndex: txIndex);
+    }
+
+    private static void RecordCredit(
+        ContractHarness harness,
+        string nodeId,
+        int sessionSuffix,
+        long tokens,
+        MeteringAttestationKind kind)
+    {
+        harness.Execute(
+            sender: harness.AdminAddress,
+            methodName: "RecordComputationCredit",
+            payload: RecordComputationCreditInput.Encode(new RecordComputationCreditInput
+            {
+                SentinelNodeId = nodeId,
+                SessionId = $"EE{sessionSuffix:D2}000000000000000000000000000000000000000000000000000000000000".ToProtoHash(),
+                WeightedTokensServed = tokens,
+                AttestationKind = kind
+            }),
+            transactionIndex: sessionSuffix + 100);
+    }
+
+    // ────────────────────────────────────────────
     // ContractHarness (mirrors AgentSession test pattern)
     // ────────────────────────────────────────────
 
