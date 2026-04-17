@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Google.Protobuf;
 
 using NightElf.Contracts.System.AgentSession;
+using NightElf.Contracts.System.Treaty;
 using NightElf.Database;
 using NightElf.Database.Tsavorite;
 using NightElf.Kernel.Consensus;
@@ -109,6 +110,32 @@ public sealed class GenesisBlockServiceTests
         var secondGenesis = await secondHarness.Service.EnsureGenesisAsync();
 
         Assert.NotEqual(firstGenesis.Block.Hash, secondGenesis.Block.Hash);
+    }
+
+    [Fact]
+    public async Task EnsureGenesisAsync_Should_Use_Treaty_Assembly_Code_Hash_When_Configured()
+    {
+        using var harness = CreateHarness(
+            nameof(ConsensusEngineKind.SingleValidator),
+            new GenesisConfig
+            {
+                ChainId = 9988,
+                TimestampUtc = new DateTimeOffset(2026, 4, 16, 0, 0, 0, TimeSpan.Zero),
+                SystemContracts = ["Treaty"]
+            });
+
+        await harness.Service.EnsureGenesisAsync();
+        var deploymentBytes = await harness.ChainStateStore.Database.GetAsync("system-contract:Treaty:deployment");
+
+        Assert.NotNull(deploymentBytes);
+
+        var deploymentRecord = VersionedStateRecord.Deserialize(deploymentBytes!);
+        using var deploymentDocument = JsonDocument.Parse(deploymentRecord.Value);
+
+        Assert.Equal("Treaty", GetProperty(deploymentDocument.RootElement, "contractName").GetString());
+        Assert.Equal(
+            ComputeAssemblyCodeHash(typeof(TreatyContract)),
+            GetProperty(deploymentDocument.RootElement, "codeHash").GetString());
     }
 
     [Fact]

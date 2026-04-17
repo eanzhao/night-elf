@@ -18,9 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\contract\NightElf.Contracts.System.Treaty\NightElf.Contracts.System.Treaty.csproj" />
-    <ProjectReference Include="..\..\src\NightElf.Launcher\NightElf.Launcher.csproj" />
-    <ProjectReference Include="..\..\src\NightElf.Kernel.Core\NightElf.Kernel.Core.csproj" />
-    <ProjectReference Include="..\..\src\NightElf.Vrf\NightElf.Vrf.csproj" />
+    <ProjectReference Include="..\..\src\NightElf.Kernel.SmartContract\NightElf.Kernel.SmartContract.csproj" />
   </ItemGroup>
 
 </Project>

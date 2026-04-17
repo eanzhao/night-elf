@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 
 using NightElf.Contracts.System.AgentSession;
+using NightElf.Contracts.System.Treaty;
 using NightElf.Sdk.CSharp;
 
 namespace NightElf.Launcher;
@@ -14,7 +15,11 @@ internal static class SystemContractArtifactCatalog
             ["AgentSession"] = CreateFromContractType(
                 "AgentSession",
                 typeof(AgentSessionContract),
-                static () => new AgentSessionContract())
+                static () => new AgentSessionContract()),
+            ["Treaty"] = CreateFromContractType(
+                "Treaty",
+                typeof(TreatyContract),
+                static () => new TreatyContract())
         };
 
     public static SystemContractArtifact Resolve(string contractName)

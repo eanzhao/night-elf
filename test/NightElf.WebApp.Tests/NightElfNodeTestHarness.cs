@@ -16,6 +16,7 @@ using Org.BouncyCastle.Crypto.Signers;
 
 using NightElf.Contracts.System.AgentSession.Protobuf;
 using NightElf.Database;
+using NightElf.DynamicContracts;
 using NightElf.Kernel.Core;
 using NightElf.Kernel.Core.Protobuf;
 using NightElf.Launcher;
@@ -423,6 +424,35 @@ public static class NightElfTransactionTestBuilder
 
         return new SignedContractDeployEnvelope(request, deployerAddress);
     }
+
+    public static SignedDynamicContractDeployEnvelope CreateDynamicContractDeployRequest(
+        ContractSpec spec,
+        byte seedMarker)
+    {
+        ArgumentNullException.ThrowIfNull(spec);
+
+        var seed = Enumerable.Repeat(seedMarker, 32).ToArray();
+        var privateKey = new Ed25519PrivateKeyParameters(seed, 0);
+        var publicKey = privateKey.GeneratePublicKey().GetEncoded();
+        var deployerAddress = new Address
+        {
+            Value = ByteString.CopyFrom(publicKey)
+        };
+
+        var signingHash = ChainSettlementSigningHelper.CreateDynamicContractDeploySigningHash(spec, spec.ContractName);
+        var signer = new Ed25519Signer();
+        signer.Init(true, privateKey);
+        signer.BlockUpdate(signingHash, 0, signingHash.Length);
+
+        var request = new DynamicContractDeployRequest
+        {
+            Spec = spec,
+            Deployer = deployerAddress,
+            Signature = ByteString.CopyFrom(signer.GenerateSignature())
+        };
+
+        return new SignedDynamicContractDeployEnvelope(request, deployerAddress);
+    }
 }
 
 public sealed record SignedTransactionEnvelope(
@@ -431,4 +461,8 @@ public sealed record SignedTransactionEnvelope(
 
 public sealed record SignedContractDeployEnvelope(
     ContractDeployRequest Request,
+    Address DeployerAddress);
+
+public sealed record SignedDynamicContractDeployEnvelope(
+    DynamicContractDeployRequest Request,
     Address DeployerAddress);

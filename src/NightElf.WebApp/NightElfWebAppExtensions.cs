@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
+using NightElf.DynamicContracts;
+
 namespace NightElf.WebApp;
 
 public static class NightElfWebAppExtensions
@@ -11,6 +13,7 @@ public static class NightElfWebAppExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddGrpc();
+        services.AddSingleton<DynamicContractBuildService>();
         services.AddSingleton<TransactionSubmissionService>();
         services.AddSingleton<ContractDeploymentService>();
         services.AddSingleton<ChainSettlementEventBroker>();

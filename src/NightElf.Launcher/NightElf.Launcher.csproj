@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\contract\NightElf.Contracts.System.AgentSession\NightElf.Contracts.System.AgentSession.csproj" />
+    <ProjectReference Include="..\..\contract\NightElf.Contracts.System.Treaty\NightElf.Contracts.System.Treaty.csproj" />
     <ProjectReference Include="..\NightElf.Core\NightElf.Core.csproj" />
     <ProjectReference Include="..\NightElf.Database.Hosting\NightElf.Database.Hosting.csproj" />
     <ProjectReference Include="..\NightElf.Database.Tsavorite\NightElf.Database.Tsavorite.csproj" />

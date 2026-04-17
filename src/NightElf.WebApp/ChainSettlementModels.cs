@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 
 using Google.Protobuf;
 
+using NightElf.DynamicContracts;
 using NightElf.Kernel.Core;
 using NightElf.Kernel.Core.Protobuf;
 using NightElf.WebApp.Protobuf;
@@ -99,6 +100,7 @@ public static class ChainSettlementStateKeys
 public static class ChainSettlementSigningHelper
 {
     private static readonly byte[] DeployPrefix = Encoding.UTF8.GetBytes("nightelf:chain-settlement:deploy:v1");
+    private static readonly byte[] DynamicDeployPrefix = Encoding.UTF8.GetBytes("nightelf:chain-settlement:dynamic-deploy:v1");
 
     public static byte[] CreateContractDeploySigningHash(
         ReadOnlySpan<byte> assemblyBytes,
@@ -121,6 +123,24 @@ public static class ChainSettlementSigningHelper
         return string.IsNullOrWhiteSpace(contractName)
             ? "DynamicContract"
             : contractName.Trim();
+    }
+
+    public static byte[] CreateDynamicContractDeploySigningHash(
+        ContractSpec spec,
+        string? contractName = null)
+    {
+        ArgumentNullException.ThrowIfNull(spec);
+
+        var normalizedName = NormalizeContractName(contractName ?? spec.ContractName);
+        var nameBytes = Encoding.UTF8.GetBytes(normalizedName);
+        var specHash = SHA256.HashData(ContractSpecSerializer.SerializeCanonicalBytes(spec));
+
+        var payload = new byte[DynamicDeployPrefix.Length + specHash.Length + nameBytes.Length];
+        DynamicDeployPrefix.CopyTo(payload, 0);
+        specHash.CopyTo(payload, DynamicDeployPrefix.Length);
+        nameBytes.CopyTo(payload, DynamicDeployPrefix.Length + specHash.Length);
+
+        return SHA256.HashData(payload);
     }
 
     public static string CreateCodeHash(ReadOnlySpan<byte> assemblyBytes)

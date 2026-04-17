@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <NightElfSdkSourceGenProject>$(MSBuildThisFileDirectory)..\..\src\NightElf.Sdk.SourceGen\NightElf.Sdk.SourceGen.csproj</NightElfSdkSourceGenProject>
+    <NightElfSdkSourceGenAnalyzer>$(MSBuildThisFileDirectory)..\..\src\NightElf.Sdk.SourceGen\bin\$(Configuration)\netstandard2.0\NightElf.Sdk.SourceGen.dll</NightElfSdkSourceGenAnalyzer>
+    <NoWarn>$(NoWarn);CS8981</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.27.2" />
+    <PackageReference Include="Grpc.Tools" Version="2.46.3" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\NightElf.Kernel.Core\NightElf.Kernel.Core.csproj" />
+    <ProjectReference Include="..\..\src\NightElf.Sdk.CSharp\NightElf.Sdk.CSharp.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Analyzer Include="$(NightElfSdkSourceGenAnalyzer)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="..\..\protobuf\nightelf\contracts\treaty.proto"
+              ProtoRoot="..\..\protobuf"
+              GrpcServices="None"
+              Link="Protobuf\nightelf\contracts\treaty.proto" />
+  </ItemGroup>
+
+  <Target Name="BuildNightElfSdkSourceGen"
+          BeforeTargets="CoreCompile"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <MSBuild Projects="$(NightElfSdkSourceGenProject)"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);PublishAot=false" />
+  </Target>
+
+</Project>

@@ -1,0 +1,200 @@
+syntax = "proto3";
+
+package nightelf.contracts.system.treaty;
+
+import "aelf/core.proto";
+
+option csharp_namespace = "NightElf.Contracts.System.Treaty.Protobuf";
+
+enum TreatyRole {
+    TREATY_ROLE_UNSPECIFIED = 0;
+    TREATY_ROLE_LEADER = 1;
+    TREATY_ROLE_WORKER = 2;
+    TREATY_ROLE_VALIDATOR = 3;
+}
+
+enum TreatyStatus {
+    TREATY_STATUS_UNSPECIFIED = 0;
+    TREATY_STATUS_PENDING_PARTICIPANTS = 1;
+    TREATY_STATUS_ACTIVE = 2;
+    TREATY_STATUS_KILLED = 3;
+    TREATY_STATUS_FINALIZED = 4;
+}
+
+enum TreatySettlementOutcome {
+    TREATY_SETTLEMENT_OUTCOME_UNSPECIFIED = 0;
+    TREATY_SETTLEMENT_OUTCOME_COMPLETED = 1;
+    TREATY_SETTLEMENT_OUTCOME_DISPUTED = 2;
+    TREATY_SETTLEMENT_OUTCOME_KILLED = 3;
+}
+
+message TreatyParticipant {
+    aelf.Address agent_address = 1;
+    TreatyRole role = 2;
+}
+
+message RoleBudget {
+    TreatyRole role = 1;
+    int64 token_limit = 2;
+}
+
+message PermissionGrant {
+    aelf.Address agent_address = 1;
+    string contract_name = 2;
+    string method_name = 3;
+}
+
+message TreatyPermissionMatrix {
+    repeated PermissionGrant grants = 1;
+}
+
+message TreatySpec {
+    repeated TreatyParticipant participants = 1;
+    repeated RoleBudget role_budgets = 2;
+    TreatyPermissionMatrix permission_matrix = 3;
+    int64 challenge_window_blocks = 4;
+}
+
+message CreateTreatyInput {
+    TreatySpec spec = 1;
+}
+
+message JoinTreatyInput {
+    aelf.Hash treaty_id = 1;
+    bytes signature = 2;
+}
+
+message TreatyActivity {
+    aelf.Hash step_hash = 1;
+    string contract_name = 2;
+    string method_name = 3;
+    aelf.Hash agent_session_id = 4;
+    string description = 5;
+}
+
+message RecordActivityInput {
+    aelf.Hash treaty_id = 1;
+    TreatyActivity action = 2;
+}
+
+message ChallengeStepInput {
+    aelf.Hash treaty_id = 1;
+    aelf.Hash step_hash = 2;
+    string reason = 3;
+}
+
+message TriggerKillSwitchInput {
+    aelf.Hash treaty_id = 1;
+    string reason = 2;
+}
+
+message FinalizeTreatyInput {
+    aelf.Hash treaty_id = 1;
+}
+
+message GetTreatyInput {
+    aelf.Hash treaty_id = 1;
+}
+
+message ParticipantState {
+    aelf.Address agent_address = 1;
+    TreatyRole role = 2;
+    bool has_joined = 3;
+    bytes join_signature = 4;
+    int64 joined_at_block_height = 5;
+    int32 joined_at_transaction_index = 6;
+}
+
+message TreatySessionBinding {
+    aelf.Address participant_address = 1;
+    aelf.Hash session_id = 2;
+}
+
+message TreatySettlement {
+    TreatySettlementOutcome outcome = 1;
+    int32 joined_participants = 2;
+    int32 activity_count = 3;
+    int32 challenge_count = 4;
+}
+
+message TreatyState {
+    aelf.Hash treaty_id = 1;
+    TreatySpec spec = 2;
+    repeated ParticipantState participant_states = 3;
+    repeated TreatySessionBinding session_bindings = 4;
+    TreatyStatus status = 5;
+    string created_by = 6;
+    int64 created_at_block_height = 7;
+    bool kill_switch_triggered = 8;
+    string kill_switch_reason = 9;
+    string kill_switch_triggered_by = 10;
+    int64 kill_switch_triggered_at_block_height = 11;
+    int32 open_challenge_count = 12;
+    int32 activity_count = 13;
+    int32 challenge_count = 14;
+    string finalized_by = 15;
+    int64 finalized_at_block_height = 16;
+    TreatySettlement settlement = 17;
+}
+
+message TreatyRecordedActivity {
+    aelf.Hash treaty_id = 1;
+    aelf.Hash step_hash = 2;
+    aelf.Address actor_address = 3;
+    string contract_name = 4;
+    string method_name = 5;
+    aelf.Hash associated_session_id = 6;
+    string description = 7;
+    int64 recorded_at_block_height = 8;
+    int32 recorded_at_transaction_index = 9;
+}
+
+message TreatyChallengeRecord {
+    aelf.Hash treaty_id = 1;
+    aelf.Hash step_hash = 2;
+    aelf.Address challenger_address = 3;
+    string reason = 4;
+    int64 challenged_at_block_height = 5;
+    int32 challenged_at_transaction_index = 6;
+}
+
+message TreatyCreated {
+    aelf.Hash treaty_id = 1;
+    string created_by = 2;
+    int64 block_height = 3;
+    int32 participant_count = 4;
+    int64 challenge_window_blocks = 5;
+}
+
+message TreatyJoined {
+    aelf.Hash treaty_id = 1;
+    aelf.Address participant_address = 2;
+    TreatyRole role = 3;
+    int64 block_height = 4;
+    int32 transaction_index = 5;
+}
+
+message StepChallenged {
+    aelf.Hash treaty_id = 1;
+    aelf.Hash step_hash = 2;
+    aelf.Address challenger_address = 3;
+    string reason = 4;
+    int64 block_height = 5;
+}
+
+message KillSwitchTriggered {
+    aelf.Hash treaty_id = 1;
+    string triggered_by = 2;
+    string reason = 3;
+    int64 block_height = 4;
+}
+
+message TreatyFinalized {
+    aelf.Hash treaty_id = 1;
+    string finalized_by = 2;
+    int64 block_height = 3;
+    TreatySettlementOutcome outcome = 4;
+    int32 joined_participants = 5;
+    int32 activity_count = 6;
+    int32 challenge_count = 7;
+}
