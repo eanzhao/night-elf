@@ -81,6 +81,8 @@ public sealed class ContractDeploymentService
                 request.Deployer,
                 transactionId,
                 codeHash,
+                isDynamicContract: false,
+                owningTreatyId: null,
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -116,12 +118,18 @@ public sealed class ContractDeploymentService
             return await RecordRejectedAsync(transactionId, codeHash, signatureError, cancellationToken).ConfigureAwait(false);
         }
 
+        var owningTreatyId = request.TreatyId is null || request.TreatyId.Value.IsEmpty
+            ? null
+            : request.TreatyId.ToHex();
+
         return await DeployCompiledAssemblyAsync(
                 artifact.AssemblyBytes,
                 normalizedContractName,
                 request.Deployer,
                 transactionId,
                 codeHash,
+                isDynamicContract: true,
+                owningTreatyId,
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -132,6 +140,8 @@ public sealed class ContractDeploymentService
         Address deployer,
         string transactionId,
         string codeHash,
+        bool isDynamicContract,
+        string? owningTreatyId,
         CancellationToken cancellationToken)
     {
         var bestChain = await _chainStateStore.GetBestChainAsync(cancellationToken).ConfigureAwait(false);
@@ -176,7 +186,9 @@ public sealed class ContractDeploymentService
             AssemblySize = assemblyBytes.Length,
             BlockHeight = bestChain.Height,
             BlockHash = bestChain.Hash,
-            DeployedAtUtc = DateTimeOffset.UtcNow
+            DeployedAtUtc = DateTimeOffset.UtcNow,
+            IsDynamicContract = isDynamicContract,
+            OwningTreatyId = owningTreatyId
         };
 
         var writes = new Dictionary<string, byte[]>(StringComparer.Ordinal)
@@ -189,6 +201,11 @@ public sealed class ContractDeploymentService
             [ChainSettlementStateKeys.GetContractCodeHashKey(codeHash)] = Encoding.UTF8.GetBytes(contractAddressHex),
             [ChainSettlementStateKeys.GetContractTransactionKey(transactionId)] = Encoding.UTF8.GetBytes(contractAddressHex)
         };
+        if (!string.IsNullOrWhiteSpace(owningTreatyId))
+        {
+            writes[ChainSettlementStateKeys.GetContractOwningTreatyKey(contractAddressHex)] =
+                Encoding.UTF8.GetBytes(owningTreatyId);
+        }
 
         await _chainStateStore.ApplyChangesAsync(bestChain, writes, cancellationToken: cancellationToken).ConfigureAwait(false);
         await _transactionResultStore
@@ -353,7 +370,8 @@ public sealed class ContractDeploymentService
             verifier.Init(false, new Ed25519PublicKeyParameters(request.Deployer.Value.ToByteArray(), 0));
             var signingHash = ChainSettlementSigningHelper.CreateDynamicContractDeploySigningHash(
                 request.Spec,
-                normalizedContractName);
+                normalizedContractName,
+                request.TreatyId);
             verifier.BlockUpdate(signingHash, 0, signingHash.Length);
 
             var verified = verifier.VerifySignature(request.Signature.ToByteArray());

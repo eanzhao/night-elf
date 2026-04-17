@@ -20,7 +20,7 @@ public sealed class SmartContractExecutorContextTests
             executionContext);
 
         Assert.Equal(
-            "tx-42|sender|token|321|17|block-321|77|addr:user|virtual:token:salt|hash:payload|vrf:seed|True|target:Call",
+            "tx-42|sender|token|321|17|block-321|77|True|treaty-9|addr:user|virtual:token:salt|hash:payload|vrf:seed|True|target:Call",
             Encoding.UTF8.GetString(result));
 
         var exception = Assert.Throws<InvalidOperationException>(
@@ -41,7 +41,9 @@ public sealed class SmartContractExecutorContextTests
             blockHeight: 321,
             blockHash: "block-321",
             timestamp: new DateTimeOffset(2026, 4, 16, 18, 0, 0, TimeSpan.Zero),
-            transactionIndex: 17);
+            transactionIndex: 17,
+            isDynamicContract: true,
+            callerTreatyId: "treaty-9");
     }
 
     private sealed class ContextAwareContract : CSharpSmartContract
@@ -68,7 +70,7 @@ public sealed class SmartContractExecutorContextTests
             var callResult = Encoding.UTF8.GetString(CallContext.Call("target", new ContractInvocation("Call", [])));
 
             return Encoding.UTF8.GetBytes(
-                $"{ExecutionContext.TransactionId}|{ExecutionContext.SenderAddress}|{ExecutionContext.CurrentContractAddress}|{ExecutionContext.BlockHeight}|{ExecutionContext.TransactionIndex}|{ExecutionContext.BlockHash}|{counter}|{generated}|{virtualAddress}|{hash}|{vrf}|{verified}|{callResult}");
+                $"{ExecutionContext.TransactionId}|{ExecutionContext.SenderAddress}|{ExecutionContext.CurrentContractAddress}|{ExecutionContext.BlockHeight}|{ExecutionContext.TransactionIndex}|{ExecutionContext.BlockHash}|{counter}|{ExecutionContext.IsDynamicContract}|{ExecutionContext.CallerTreatyId}|{generated}|{virtualAddress}|{hash}|{vrf}|{verified}|{callResult}");
         }
     }
 

@@ -80,7 +80,9 @@ public sealed class ContractExecutionContextTests
             blockHeight: 123,
             blockHash: "block-hash",
             timestamp: timestamp,
-            transactionIndex: 7);
+            transactionIndex: 7,
+            isDynamicContract: true,
+            callerTreatyId: "treaty-1");
 
         Assert.Same(state, context.State);
         Assert.Same(calls, context.Calls);
@@ -93,6 +95,8 @@ public sealed class ContractExecutionContextTests
         Assert.Equal("block-hash", context.BlockHash);
         Assert.Equal(timestamp, context.Timestamp);
         Assert.Equal(7, context.TransactionIndex);
+        Assert.True(context.IsDynamicContract);
+        Assert.Equal("treaty-1", context.CallerTreatyId);
     }
 
     private sealed class FakeStateProvider : IContractStateProvider

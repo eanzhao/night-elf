@@ -1,7 +1,10 @@
 using System.Text.Json;
 
+using Google.Protobuf;
+
 using NightElf.DynamicContracts;
 using NightElf.Kernel.Core;
+using NightElf.Kernel.Core.Protobuf;
 using NightElf.WebApp.Protobuf;
 using Xunit;
 
@@ -42,6 +45,36 @@ public sealed class DynamicContractDeploymentServiceTests
         Assert.NotNull(artifact);
         Assert.Equal("GreetingContract", GetJsonProperty(metadataDocument.RootElement, "contractName").GetString());
         Assert.Equal(deployResult.ContractAddress.ToHex(), GetJsonProperty(metadataDocument.RootElement, "contractAddressHex").GetString());
+    }
+
+    [Fact]
+    public async Task DeployDynamicAsync_Should_Persist_Owning_Treaty_Metadata_When_Provided()
+    {
+        await using var harness = await NightElfNodeTestHarness.CreateAsync();
+        await harness.WaitForChainHeightAsync(1);
+
+        var deploymentService = harness.GetRequiredService<ContractDeploymentService>();
+        var settlementClient = harness.CreateChainSettlementClient();
+        var spec = CreateGreetingSpec();
+        var treatyId = CreateHash("AB".PadLeft(64, 'A'));
+        var deployEnvelope = NightElfTransactionTestBuilder.CreateDynamicContractDeployRequest(spec, seedMarker: 0xC8, treatyId: treatyId);
+
+        var deployResult = await deploymentService.DeployDynamicAsync(deployEnvelope.Request);
+        var metadataState = await settlementClient.QueryStateAsync(new StateQuery
+        {
+            Key = ChainSettlementStateKeys.GetContractMetadataKey(deployResult.ContractAddress.ToHex())
+        }).ResponseAsync;
+        var owningTreatyState = await settlementClient.QueryStateAsync(new StateQuery
+        {
+            Key = ChainSettlementStateKeys.GetContractOwningTreatyKey(deployResult.ContractAddress.ToHex())
+        }).ResponseAsync;
+        using var metadataDocument = JsonDocument.Parse(metadataState.Value.ToByteArray());
+
+        Assert.Equal(TransactionExecutionStatus.Mined, deployResult.Status);
+        Assert.True(owningTreatyState.Found);
+        Assert.Equal(treatyId.ToHex(), owningTreatyState.Value.ToStringUtf8());
+        Assert.True(GetJsonProperty(metadataDocument.RootElement, "isDynamicContract").GetBoolean());
+        Assert.Equal(treatyId.ToHex(), GetJsonProperty(metadataDocument.RootElement, "owningTreatyId").GetString());
     }
 
     private static ContractSpec CreateGreetingSpec()
@@ -110,5 +143,13 @@ public sealed class DynamicContractDeploymentServiceTests
         }
 
         throw new KeyNotFoundException($"Property '{propertyName}' was not found in deployment JSON '{root}'.");
+    }
+
+    private static Hash CreateHash(string hex)
+    {
+        return new Hash
+        {
+            Value = ByteString.CopyFrom(Convert.FromHexString(hex))
+        };
     }
 }

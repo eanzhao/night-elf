@@ -13,7 +13,9 @@ public sealed class ContractExecutionContext
         long blockHeight,
         string blockHash,
         DateTimeOffset timestamp,
-        int transactionIndex = 0)
+        int transactionIndex = 0,
+        bool isDynamicContract = false,
+        string? callerTreatyId = null)
     {
         State = state ?? throw new ArgumentNullException(nameof(state));
         Calls = calls ?? throw new ArgumentNullException(nameof(calls));
@@ -25,6 +27,10 @@ public sealed class ContractExecutionContext
         ArgumentException.ThrowIfNullOrWhiteSpace(currentContractAddress);
         ArgumentException.ThrowIfNullOrWhiteSpace(blockHash);
         ArgumentOutOfRangeException.ThrowIfNegative(transactionIndex);
+        if (callerTreatyId is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(callerTreatyId);
+        }
 
         TransactionId = transactionId;
         SenderAddress = senderAddress;
@@ -33,6 +39,8 @@ public sealed class ContractExecutionContext
         BlockHash = blockHash;
         Timestamp = timestamp;
         TransactionIndex = transactionIndex;
+        IsDynamicContract = isDynamicContract;
+        CallerTreatyId = callerTreatyId;
     }
 
     public ContractStateContext State { get; }
@@ -56,6 +64,10 @@ public sealed class ContractExecutionContext
     public DateTimeOffset Timestamp { get; }
 
     public int TransactionIndex { get; }
+
+    public bool IsDynamicContract { get; }
+
+    public string? CallerTreatyId { get; }
 
     public CancellationToken CancellationToken { get; set; }
 }

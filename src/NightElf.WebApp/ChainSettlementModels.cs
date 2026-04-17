@@ -45,6 +45,10 @@ public sealed class ChainSettlementContractDeploymentRecord
     public string BlockHash { get; init; } = string.Empty;
 
     public DateTimeOffset DeployedAtUtc { get; init; }
+
+    public bool IsDynamicContract { get; init; }
+
+    public string? OwningTreatyId { get; init; }
 }
 
 internal sealed class ChainSettlementContractDeployExecutionResult
@@ -82,6 +86,12 @@ public static class ChainSettlementStateKeys
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contractAddressHex);
         return $"contract:{contractAddressHex}:metadata";
+    }
+
+    public static string GetContractOwningTreatyKey(string contractAddressHex)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractAddressHex);
+        return $"contract:{contractAddressHex}:owning-treaty";
     }
 
     public static string GetContractCodeHashKey(string codeHash)
@@ -127,18 +137,24 @@ public static class ChainSettlementSigningHelper
 
     public static byte[] CreateDynamicContractDeploySigningHash(
         ContractSpec spec,
-        string? contractName = null)
+        string? contractName = null,
+        Hash? treatyId = null)
     {
         ArgumentNullException.ThrowIfNull(spec);
 
         var normalizedName = NormalizeContractName(contractName ?? spec.ContractName);
         var nameBytes = Encoding.UTF8.GetBytes(normalizedName);
         var specHash = SHA256.HashData(ContractSpecSerializer.SerializeCanonicalBytes(spec));
+        var treatyIdBytes = treatyId is null || treatyId.Value.IsEmpty
+            ? []
+            : treatyId.Value.ToByteArray();
 
-        var payload = new byte[DynamicDeployPrefix.Length + specHash.Length + nameBytes.Length];
+        var payload = new byte[DynamicDeployPrefix.Length + specHash.Length + nameBytes.Length + 1 + treatyIdBytes.Length];
         DynamicDeployPrefix.CopyTo(payload, 0);
         specHash.CopyTo(payload, DynamicDeployPrefix.Length);
         nameBytes.CopyTo(payload, DynamicDeployPrefix.Length + specHash.Length);
+        payload[DynamicDeployPrefix.Length + specHash.Length + nameBytes.Length] = treatyIdBytes.Length > 0 ? (byte)1 : (byte)0;
+        treatyIdBytes.CopyTo(payload, DynamicDeployPrefix.Length + specHash.Length + nameBytes.Length + 1);
 
         return SHA256.HashData(payload);
     }

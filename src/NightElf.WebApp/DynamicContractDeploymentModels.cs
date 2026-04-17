@@ -12,4 +12,6 @@ public sealed class DynamicContractDeployRequest
     public required Address Deployer { get; init; }
 
     public ByteString Signature { get; init; } = ByteString.Empty;
+
+    public Hash? TreatyId { get; init; }
 }

@@ -5,12 +5,15 @@ using System.Text.Json;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Signers;
 
+using NightElf.Contracts.System.Treaty.Protobuf;
 using NightElf.Database;
 using NightElf.Kernel.Core;
 using NightElf.Kernel.Core.Protobuf;
 using NightElf.Kernel.SmartContract;
 using NightElf.Runtime.CSharp;
 using NightElf.Sdk.CSharp;
+using NightElf.WebApp;
+using NightElf.WebApp.Protobuf;
 using ChainTransactionResultStatus = NightElf.Kernel.Core.TransactionResultStatus;
 
 namespace NightElf.Launcher;
@@ -54,17 +57,20 @@ public sealed class SystemContractExecutionService : IBlockTransactionExecutionS
 
     private readonly LauncherOptions _launcherOptions;
     private readonly IChainStateStore _chainStateStore;
+    private readonly INonCriticalEventBus _eventBus;
     private readonly SmartContractExecutor _executor;
     private readonly ContractSandboxExecutionService _sandboxExecutionService;
 
     public SystemContractExecutionService(
         LauncherOptions launcherOptions,
         IChainStateStore chainStateStore,
+        INonCriticalEventBus eventBus,
         SmartContractExecutor executor,
         ContractSandboxExecutionService sandboxExecutionService)
     {
         _launcherOptions = launcherOptions ?? throw new ArgumentNullException(nameof(launcherOptions));
         _chainStateStore = chainStateStore ?? throw new ArgumentNullException(nameof(chainStateStore));
+        _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
         _executor = executor ?? throw new ArgumentNullException(nameof(executor));
         _sandboxExecutionService = sandboxExecutionService ?? throw new ArgumentNullException(nameof(sandboxExecutionService));
     }
@@ -139,53 +145,26 @@ public sealed class SystemContractExecutionService : IBlockTransactionExecutionS
         }
 
         var invocation = new ContractInvocation(transaction.MethodName, transaction.Params.ToByteArray());
-        var prefetchedState = await LoadPrefetchedStateAsync(
-                contract,
-                invocation,
-                blockWrites,
-                blockDeletes,
-                cancellationToken)
-            .ConfigureAwait(false);
-        var stateProvider = new OverlayContractStateProvider(
-            prefetchedState,
-            blockWrites,
-            blockDeletes,
-            key => LoadStateValueAsync(key, cancellationToken).ConfigureAwait(false).GetAwaiter().GetResult());
-        var executionContext = new ContractExecutionContext(
-            new ContractStateContext(stateProvider),
-            new ContractCallContext(new UnsupportedContractCallHandler()),
-            new ContractCryptoContext(new DefaultContractCryptoProvider()),
-            new ContractIdentityContext(new DefaultContractIdentityProvider()),
-            transactionId: transaction.GetTransactionId(),
-            senderAddress: transaction.From.ToHex(),
-            currentContractAddress: transaction.To.ToHex(),
-            blockHeight: block.Height,
-            blockHash: block.Hash,
-            timestamp: timestampUtc,
-            transactionIndex: transactionIndex);
+        var transactionId = transaction.GetTransactionId();
 
         try
         {
-            await _sandboxExecutionService.ExecuteContractAsync(
-                    _executor,
+            _ = await ExecuteContractInvocationAsync(
                     contract,
                     invocation,
-                    executionContext,
-                    ExecutionTimeout,
+                    transactionId,
+                    transaction.From.ToHex(),
+                    transaction.To.ToHex(),
+                    block.Height,
+                    block.Hash,
+                    timestampUtc,
+                    transactionIndex,
+                    isDynamicContract: false,
+                    callerTreatyId: null,
+                    blockWrites,
+                    blockDeletes,
                     cancellationToken)
                 .ConfigureAwait(false);
-
-            foreach (var write in stateProvider.Writes)
-            {
-                blockDeletes.Remove(write.Key);
-                blockWrites[write.Key] = write.Value;
-            }
-
-            foreach (var delete in stateProvider.Deletes)
-            {
-                blockWrites.Remove(delete);
-                blockDeletes.Add(delete);
-            }
 
             return new BlockTransactionExecutionOutcome
             {
@@ -198,6 +177,89 @@ public sealed class SystemContractExecutionService : IBlockTransactionExecutionS
         {
             return Failed(transaction, exception.Message);
         }
+    }
+
+    private async Task<byte[]> ExecuteContractInvocationAsync(
+        CSharpSmartContract contract,
+        ContractInvocation invocation,
+        string transactionId,
+        string senderAddress,
+        string currentContractAddress,
+        long blockHeight,
+        string blockHash,
+        DateTimeOffset timestampUtc,
+        int transactionIndex,
+        bool isDynamicContract,
+        string? callerTreatyId,
+        IDictionary<string, byte[]> blockWrites,
+        ISet<string> blockDeletes,
+        CancellationToken cancellationToken)
+    {
+        var prefetchedState = await LoadPrefetchedStateAsync(
+                contract,
+                invocation,
+                blockWrites,
+                blockDeletes,
+                cancellationToken)
+            .ConfigureAwait(false);
+        var stateProvider = new OverlayContractStateProvider(
+            prefetchedState,
+            blockWrites,
+            blockDeletes,
+            key => LoadStateValueSync(key, cancellationToken));
+
+        ContractExecutionContext? executionContext = null;
+        var permissionGrantChecker = new StateBackedContractCallPermissionGrantChecker(
+            key => LoadStateValueSync(key, cancellationToken));
+        var callHandler = new AuthorizingContractCallHandler(
+            () => executionContext ?? throw new InvalidOperationException("Cross-contract call context is not available."),
+            ResolveCallTargetInfo,
+            request => DispatchCrossContractCall(request, blockWrites, blockDeletes, cancellationToken),
+            permissionGrantChecker,
+            deniedEvent => PublishCrossContractCallDeniedEvent(
+                deniedEvent,
+                transactionId,
+                blockHeight,
+                blockHash,
+                cancellationToken));
+
+        executionContext = new ContractExecutionContext(
+            new ContractStateContext(stateProvider),
+            new ContractCallContext(callHandler),
+            new ContractCryptoContext(new DefaultContractCryptoProvider()),
+            new ContractIdentityContext(new DefaultContractIdentityProvider()),
+            transactionId: transactionId,
+            senderAddress: senderAddress,
+            currentContractAddress: currentContractAddress,
+            blockHeight: blockHeight,
+            blockHash: blockHash,
+            timestamp: timestampUtc,
+            transactionIndex: transactionIndex,
+            isDynamicContract: isDynamicContract,
+            callerTreatyId: callerTreatyId);
+
+        var result = await _sandboxExecutionService.ExecuteContractAsync(
+                _executor,
+                contract,
+                invocation,
+                executionContext,
+                ExecutionTimeout,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var write in stateProvider.Writes)
+        {
+            blockDeletes.Remove(write.Key);
+            blockWrites[write.Key] = write.Value;
+        }
+
+        foreach (var delete in stateProvider.Deletes)
+        {
+            blockWrites.Remove(delete);
+            blockDeletes.Add(delete);
+        }
+
+        return result;
     }
 
     private async Task<IReadOnlyDictionary<string, byte[]?>> LoadPrefetchedStateAsync(
@@ -265,6 +327,13 @@ public sealed class SystemContractExecutionService : IBlockTransactionExecutionS
         return UnwrapStateValue(bytes);
     }
 
+    private byte[]? LoadStateValueSync(
+        string key,
+        CancellationToken cancellationToken)
+    {
+        return LoadStateValueAsync(key, cancellationToken).ConfigureAwait(false).GetAwaiter().GetResult();
+    }
+
     private async Task<ResolvedSystemContract?> ResolveContractAsync(
         Address address,
         CancellationToken cancellationToken)
@@ -306,6 +375,41 @@ public sealed class SystemContractExecutionService : IBlockTransactionExecutionS
         return null;
     }
 
+    private ContractCallTargetInfo? ResolveCallTargetInfo(string contractAddressHex)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractAddressHex);
+
+        var systemContract = ResolveSystemContractByAddressHex(contractAddressHex);
+        if (systemContract is not null)
+        {
+            return new ContractCallTargetInfo(
+                contractAddressHex,
+                systemContract.ContractName,
+                isDynamicContract: false,
+                isSystemContract: true);
+        }
+
+        var metadataBytes = LoadStateValueSync(
+            ChainSettlementStateKeys.GetContractMetadataKey(contractAddressHex),
+            CancellationToken.None);
+        if (metadataBytes is null)
+        {
+            return null;
+        }
+
+        var metadata = JsonSerializer.Deserialize<ChainSettlementContractDeploymentRecord>(
+            metadataBytes,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        return metadata is null
+            ? null
+            : new ContractCallTargetInfo(
+                contractAddressHex,
+                metadata.ContractName,
+                metadata.IsDynamicContract,
+                isSystemContract: false,
+                metadata.OwningTreatyId);
+    }
+
     private async Task<GenesisSystemContractDeploymentRecord?> LoadDeploymentAsync(
         string contractName,
         CancellationToken cancellationToken)
@@ -342,6 +446,109 @@ public sealed class SystemContractExecutionService : IBlockTransactionExecutionS
         }
 
         return deployment;
+    }
+
+    private ResolvedSystemContract? ResolveSystemContractByAddressHex(string contractAddressHex)
+    {
+        lock (_cacheLock)
+        {
+            if (_resolvedContractsByAddress.TryGetValue(contractAddressHex, out var cached))
+            {
+                return cached;
+            }
+        }
+
+        foreach (var contractName in _launcherOptions.Genesis.SystemContracts.Distinct(StringComparer.Ordinal))
+        {
+            var deployment = LoadDeploymentAsync(contractName, CancellationToken.None).ConfigureAwait(false).GetAwaiter().GetResult();
+            if (deployment is null ||
+                !StringComparer.OrdinalIgnoreCase.Equals(deployment.AddressHex, contractAddressHex))
+            {
+                continue;
+            }
+
+            var resolved = new ResolvedSystemContract(contractName, contractAddressHex);
+            lock (_cacheLock)
+            {
+                _resolvedContractsByAddress[contractAddressHex] = resolved;
+            }
+
+            return resolved;
+        }
+
+        lock (_cacheLock)
+        {
+            _resolvedContractsByAddress[contractAddressHex] = null;
+        }
+
+        return null;
+    }
+
+    private byte[] DispatchCrossContractCall(
+        ContractCallDispatchRequest request,
+        IDictionary<string, byte[]> blockWrites,
+        ISet<string> blockDeletes,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!request.Target.IsSystemContract)
+        {
+            throw new InvalidOperationException(
+                $"Cross-contract target '{request.Target.ContractName}' at '{request.Target.ContractAddress}' is deployed but not executable by the launcher runtime yet.");
+        }
+
+        var resolvedContract = ResolveSystemContractByAddressHex(request.Target.ContractAddress) ??
+            throw new InvalidOperationException($"Contract address '{request.Target.ContractAddress}' is not deployed.");
+        if (!SystemContractArtifactCatalog.TryCreateContractInstance(resolvedContract.ContractName, out var contract) ||
+            contract is null)
+        {
+            throw new InvalidOperationException(
+                $"Contract '{resolvedContract.ContractName}' does not have a local runtime implementation.");
+        }
+
+        return ExecuteContractInvocationAsync(
+                contract,
+                request.Invocation,
+                request.CallerContext.TransactionId,
+                request.CallerContext.SenderAddress,
+                request.Target.ContractAddress,
+                request.CallerContext.BlockHeight,
+                request.CallerContext.BlockHash,
+                request.CallerContext.Timestamp,
+                request.CallerContext.TransactionIndex,
+                request.Target.IsDynamicContract,
+                request.EffectiveCallerTreatyId,
+                blockWrites,
+                blockDeletes,
+                cancellationToken)
+            .ConfigureAwait(false)
+            .GetAwaiter()
+            .GetResult();
+    }
+
+    private void PublishCrossContractCallDeniedEvent(
+        CrossContractCallDeniedEvent deniedEvent,
+        string transactionId,
+        long blockHeight,
+        string blockHash,
+        CancellationToken cancellationToken)
+    {
+        _eventBus.PublishAsync(
+                new ChainSettlementEventEnvelope(
+                    EventId: $"cross-call-denied:{transactionId}:{deniedEvent.CallerContractAddress}:{deniedEvent.TargetContractAddress}:{deniedEvent.TargetMethodName}",
+                    EventType: ChainEventType.CrossContractCallDenied,
+                    OccurredAtUtc: DateTimeOffset.UtcNow,
+                    BlockHeight: blockHeight,
+                    BlockHash: blockHash,
+                    TransactionId: transactionId,
+                    ContractAddress: deniedEvent.CallerContractAddress,
+                    Payload: JsonSerializer.SerializeToUtf8Bytes(deniedEvent),
+                    Message: deniedEvent.Reason),
+                cancellationToken)
+            .ConfigureAwait(false)
+            .GetAwaiter()
+            .GetResult();
     }
 
     private static BlockTransactionExecutionOutcome Failed(Transaction transaction, string error)
@@ -444,18 +651,36 @@ public sealed class SystemContractExecutionService : IBlockTransactionExecutionS
         }
     }
 
-    private sealed class UnsupportedContractCallHandler : IContractCallHandler
+    private sealed class StateBackedContractCallPermissionGrantChecker : IContractCallPermissionGrantChecker
     {
-        public byte[] Call(string contractAddress, ContractInvocation invocation)
+        private readonly Func<string, byte[]?> _stateLoader;
+
+        public StateBackedContractCallPermissionGrantChecker(Func<string, byte[]?> stateLoader)
         {
-            throw new InvalidOperationException(
-                $"Cross-contract call '{contractAddress}:{invocation.MethodName}' is not enabled in Phase 1.");
+            _stateLoader = stateLoader ?? throw new ArgumentNullException(nameof(stateLoader));
         }
 
-        public void SendInline(string contractAddress, ContractInvocation invocation)
+        public bool IsAllowed(
+            string treatyId,
+            string agentAddress,
+            ContractCallTargetInfo target,
+            ContractInvocation invocation)
         {
-            throw new InvalidOperationException(
-                $"Inline contract call '{contractAddress}:{invocation.MethodName}' is not enabled in Phase 1.");
+            ArgumentException.ThrowIfNullOrWhiteSpace(treatyId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(agentAddress);
+
+            var treatyBytes = _stateLoader($"treaty:{treatyId}");
+            if (treatyBytes is null)
+            {
+                return false;
+            }
+
+            var treatyState = TreatyState.Parser.ParseFrom(treatyBytes);
+            return treatyState.Spec.PermissionMatrix.Grants.Any(grant =>
+                StringComparer.OrdinalIgnoreCase.Equals(grant.AgentAddress?.ToHex(), agentAddress) &&
+                (StringComparer.Ordinal.Equals(grant.ContractName, target.ContractName) ||
+                 StringComparer.OrdinalIgnoreCase.Equals(grant.ContractName, target.ContractAddress)) &&
+                StringComparer.Ordinal.Equals(grant.MethodName, invocation.MethodName));
         }
     }
 

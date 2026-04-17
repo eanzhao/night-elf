@@ -427,7 +427,8 @@ public static class NightElfTransactionTestBuilder
 
     public static SignedDynamicContractDeployEnvelope CreateDynamicContractDeployRequest(
         ContractSpec spec,
-        byte seedMarker)
+        byte seedMarker,
+        Hash? treatyId = null)
     {
         ArgumentNullException.ThrowIfNull(spec);
 
@@ -439,7 +440,7 @@ public static class NightElfTransactionTestBuilder
             Value = ByteString.CopyFrom(publicKey)
         };
 
-        var signingHash = ChainSettlementSigningHelper.CreateDynamicContractDeploySigningHash(spec, spec.ContractName);
+        var signingHash = ChainSettlementSigningHelper.CreateDynamicContractDeploySigningHash(spec, spec.ContractName, treatyId);
         var signer = new Ed25519Signer();
         signer.Init(true, privateKey);
         signer.BlockUpdate(signingHash, 0, signingHash.Length);
@@ -448,7 +449,8 @@ public static class NightElfTransactionTestBuilder
         {
             Spec = spec,
             Deployer = deployerAddress,
-            Signature = ByteString.CopyFrom(signer.GenerateSignature())
+            Signature = ByteString.CopyFrom(signer.GenerateSignature()),
+            TreatyId = treatyId
         };
 
         return new SignedDynamicContractDeployEnvelope(request, deployerAddress);
