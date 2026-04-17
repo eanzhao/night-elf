@@ -5,6 +5,7 @@ using NightElf.Contracts.System.AgentSession.Protobuf;
 using NightElf.Kernel.Core;
 using NightElf.Kernel.Core.Protobuf;
 using NightElf.WebApp.Protobuf;
+using ApiTransactionResult = NightElf.WebApp.Protobuf.TransactionResult;
 
 namespace NightElf.WebApp.Tests;
 
@@ -189,7 +190,7 @@ public sealed class LlmTokenMeteringTests
     private static async Task<Hash> ResolveSessionIdAsync(
         NightElfNodeTestHarness harness,
         Address senderAddress,
-        TransactionResult minedResult)
+        ApiTransactionResult minedResult)
     {
         var block = await harness.WaitForBlockByHeightAsync(minedResult.BlockHeight);
         var transactionIndex = block.Body.TransactionIds

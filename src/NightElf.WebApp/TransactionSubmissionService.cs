@@ -4,6 +4,7 @@ using Grpc.Core;
 using NightElf.Kernel.Core;
 using NightElf.Kernel.Core.Protobuf;
 using NightElf.WebApp.Protobuf;
+using ApiTransactionResult = NightElf.WebApp.Protobuf.TransactionResult;
 
 namespace NightElf.WebApp;
 
@@ -26,21 +27,21 @@ public sealed class TransactionSubmissionService
         _transactionRelayService = transactionRelayService ?? throw new ArgumentNullException(nameof(transactionRelayService));
     }
 
-    public async Task<TransactionResult> SubmitAsync(
+    public async Task<ApiTransactionResult> SubmitAsync(
         Transaction request,
         CancellationToken cancellationToken = default)
     {
         return await SubmitCoreAsync(request, relayToPeers: true, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<TransactionResult> SubmitRelayedAsync(
+    public async Task<ApiTransactionResult> SubmitRelayedAsync(
         Transaction request,
         CancellationToken cancellationToken = default)
     {
         return await SubmitCoreAsync(request, relayToPeers: false, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<TransactionResult> SubmitCoreAsync(
+    private async Task<ApiTransactionResult> SubmitCoreAsync(
         Transaction request,
         bool relayToPeers,
         CancellationToken cancellationToken)
@@ -94,7 +95,7 @@ public sealed class TransactionSubmissionService
         return poolRejected;
     }
 
-    public async Task<TransactionResult> GetResultAsync(
+    public async Task<ApiTransactionResult> GetResultAsync(
         Hash request,
         CancellationToken cancellationToken = default)
     {
@@ -107,7 +108,7 @@ public sealed class TransactionSubmissionService
 
         var result = await _transactionResultStore.GetAsync(request, cancellationToken).ConfigureAwait(false);
         return result is null
-            ? new TransactionResult
+            ? new ApiTransactionResult
             {
                 TransactionId = request,
                 Status = TransactionExecutionStatus.NotFound
@@ -116,7 +117,7 @@ public sealed class TransactionSubmissionService
     }
 
     private Task PublishTransactionEventAsync(
-        TransactionResult result,
+        ApiTransactionResult result,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(result);

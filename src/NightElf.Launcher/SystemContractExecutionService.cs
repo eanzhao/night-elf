@@ -11,6 +11,7 @@ using NightElf.Kernel.Core.Protobuf;
 using NightElf.Kernel.SmartContract;
 using NightElf.Runtime.CSharp;
 using NightElf.Sdk.CSharp;
+using ChainTransactionResultStatus = NightElf.Kernel.Core.TransactionResultStatus;
 
 namespace NightElf.Launcher;
 
@@ -37,7 +38,7 @@ public sealed class BlockTransactionExecutionOutcome
 {
     public required Transaction Transaction { get; init; }
 
-    public required TransactionResultStatus Status { get; init; }
+    public required ChainTransactionResultStatus Status { get; init; }
 
     public string? Error { get; init; }
 }
@@ -189,7 +190,7 @@ public sealed class SystemContractExecutionService : IBlockTransactionExecutionS
             return new BlockTransactionExecutionOutcome
             {
                 Transaction = transaction,
-                Status = TransactionResultStatus.Mined,
+                Status = ChainTransactionResultStatus.Mined,
                 Error = null
             };
         }
@@ -348,7 +349,7 @@ public sealed class SystemContractExecutionService : IBlockTransactionExecutionS
         return new BlockTransactionExecutionOutcome
         {
             Transaction = transaction,
-            Status = TransactionResultStatus.Failed,
+            Status = ChainTransactionResultStatus.Failed,
             Error = error
         };
     }

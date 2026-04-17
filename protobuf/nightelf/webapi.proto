@@ -5,7 +5,8 @@ package nightelf.webapp;
 option csharp_namespace = "NightElf.WebApp.Protobuf";
 
 import "aelf/core.proto";
-import "kernel.proto";
+import "aelf/transaction.proto";
+import "aelf/block.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 

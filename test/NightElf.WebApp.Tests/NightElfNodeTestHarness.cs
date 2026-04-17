@@ -20,6 +20,7 @@ using NightElf.Kernel.Core;
 using NightElf.Kernel.Core.Protobuf;
 using NightElf.Launcher;
 using NightElf.WebApp.Protobuf;
+using ApiTransactionResult = NightElf.WebApp.Protobuf.TransactionResult;
 
 namespace NightElf.WebApp.Tests;
 
@@ -152,7 +153,7 @@ public sealed class NightElfNodeTestHarness : IAsyncDisposable
         }
     }
 
-    public async Task<TransactionResult> WaitForTransactionStatusAsync(
+    public async Task<ApiTransactionResult> WaitForTransactionStatusAsync(
         Hash transactionId,
         TransactionExecutionStatus expectedStatus,
         TimeSpan? timeout = null)

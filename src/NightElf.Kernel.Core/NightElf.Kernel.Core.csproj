@@ -21,10 +21,14 @@
               ProtoRoot="..\..\protobuf"
               GrpcServices="None"
               Link="Protobuf\aelf\core.proto" />
-    <Protobuf Include="..\..\protobuf\kernel.proto"
+    <Protobuf Include="..\..\protobuf\aelf\transaction.proto"
               ProtoRoot="..\..\protobuf"
               GrpcServices="None"
-              Link="Protobuf\kernel.proto" />
+              Link="Protobuf\aelf\transaction.proto" />
+    <Protobuf Include="..\..\protobuf\aelf\block.proto"
+              ProtoRoot="..\..\protobuf"
+              GrpcServices="None"
+              Link="Protobuf\aelf\block.proto" />
   </ItemGroup>
 
 </Project>

@@ -7,6 +7,7 @@ using NightElf.Contracts.System.AgentSession.Protobuf;
 using NightElf.Kernel.Core;
 using NightElf.Kernel.Core.Protobuf;
 using NightElf.WebApp.Protobuf;
+using ApiTransactionResult = NightElf.WebApp.Protobuf.TransactionResult;
 
 namespace NightElf.WebApp.Tests;
 
@@ -189,7 +190,7 @@ public sealed class Phase1EndToEndTests
             .ToArray();
 
         var stopwatch = Stopwatch.StartNew();
-        var submitResults = new List<TransactionResult>(transactionCount);
+        var submitResults = new List<ApiTransactionResult>(transactionCount);
         foreach (var envelope in envelopes)
         {
             submitResults.Add(await client.SubmitTransactionAsync(envelope.Transaction).ResponseAsync);
@@ -215,7 +216,7 @@ public sealed class Phase1EndToEndTests
     private static async Task<Hash> ResolveSessionIdAsync(
         NightElfNodeTestHarness harness,
         Address senderAddress,
-        TransactionResult minedResult)
+        ApiTransactionResult minedResult)
     {
         var block = await harness.WaitForBlockByHeightAsync(minedResult.BlockHeight);
         var transactionIndex = block.Body.TransactionIds

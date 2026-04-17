@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package aelf;
+
+import "aelf/core.proto";
+
+option csharp_namespace = "NightElf.Kernel.Core.Protobuf";
+
+message Transaction {
+    Address from = 1;
+    Address to = 2;
+    int64 ref_block_number = 3;
+    bytes ref_block_prefix = 4;
+    string method_name = 5;
+    bytes params = 6;
+    bytes signature = 10000;
+}
+
+enum TransactionResultStatus {
+    NOT_EXISTED = 0;
+    PENDING = 1;
+    FAILED = 2;
+    MINED = 3;
+    CONFLICT = 4;
+    PENDING_VALIDATION = 5;
+    NODE_VALIDATION_FAILED = 6;
+}
+
+message TransactionResult {
+    Hash transaction_id = 1;
+    TransactionResultStatus status = 2;
+    bytes bloom = 4;
+    bytes return_value = 5;
+    int64 block_number = 6;
+    Hash block_hash = 7;
+    string error = 8;
+}

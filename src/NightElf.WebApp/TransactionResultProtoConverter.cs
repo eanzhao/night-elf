@@ -1,24 +1,26 @@
 using NightElf.Kernel.Core;
 using NightElf.Kernel.Core.Protobuf;
 using NightElf.WebApp.Protobuf;
+using ApiTransactionResult = NightElf.WebApp.Protobuf.TransactionResult;
+using ChainTransactionResultStatus = NightElf.Kernel.Core.TransactionResultStatus;
 
 namespace NightElf.WebApp;
 
 public static class TransactionResultProtoConverter
 {
-    public static TransactionResult ToProto(TransactionResultRecord record)
+    public static ApiTransactionResult ToProto(TransactionResultRecord record)
     {
         ArgumentNullException.ThrowIfNull(record);
 
-        return new TransactionResult
+        return new ApiTransactionResult
         {
             TransactionId = record.TransactionId.ToProtoHash(),
             Status = record.Status switch
             {
-                TransactionResultStatus.Pending => TransactionExecutionStatus.Pending,
-                TransactionResultStatus.Mined => TransactionExecutionStatus.Mined,
-                TransactionResultStatus.Failed => TransactionExecutionStatus.Failed,
-                TransactionResultStatus.Rejected => TransactionExecutionStatus.Rejected,
+                ChainTransactionResultStatus.Pending => TransactionExecutionStatus.Pending,
+                ChainTransactionResultStatus.Mined => TransactionExecutionStatus.Mined,
+                ChainTransactionResultStatus.Failed => TransactionExecutionStatus.Failed,
+                ChainTransactionResultStatus.Rejected => TransactionExecutionStatus.Rejected,
                 _ => TransactionExecutionStatus.Unspecified
             },
             Error = record.Error ?? string.Empty,
@@ -29,11 +31,11 @@ public static class TransactionResultProtoConverter
         };
     }
 
-    public static TransactionResult CreatePending(string transactionId, string? error = null)
+    public static ApiTransactionResult CreatePending(string transactionId, string? error = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(transactionId);
 
-        return new TransactionResult
+        return new ApiTransactionResult
         {
             TransactionId = transactionId.ToProtoHash(),
             Status = TransactionExecutionStatus.Pending,
@@ -41,9 +43,9 @@ public static class TransactionResultProtoConverter
         };
     }
 
-    public static TransactionResult CreateRejected(string? transactionId, string? error)
+    public static ApiTransactionResult CreateRejected(string? transactionId, string? error)
     {
-        return new TransactionResult
+        return new ApiTransactionResult
         {
             TransactionId = string.IsNullOrWhiteSpace(transactionId)
                 ? new Hash()
@@ -53,23 +55,23 @@ public static class TransactionResultProtoConverter
         };
     }
 
-    public static TransactionResult Create(
+    public static ApiTransactionResult Create(
         string transactionId,
-        TransactionResultStatus status,
+        ChainTransactionResultStatus status,
         string? error = null,
         BlockReference? block = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(transactionId);
 
-        return new TransactionResult
+        return new ApiTransactionResult
         {
             TransactionId = transactionId.ToProtoHash(),
             Status = status switch
             {
-                TransactionResultStatus.Pending => TransactionExecutionStatus.Pending,
-                TransactionResultStatus.Mined => TransactionExecutionStatus.Mined,
-                TransactionResultStatus.Failed => TransactionExecutionStatus.Failed,
-                TransactionResultStatus.Rejected => TransactionExecutionStatus.Rejected,
+                ChainTransactionResultStatus.Pending => TransactionExecutionStatus.Pending,
+                ChainTransactionResultStatus.Mined => TransactionExecutionStatus.Mined,
+                ChainTransactionResultStatus.Failed => TransactionExecutionStatus.Failed,
+                ChainTransactionResultStatus.Rejected => TransactionExecutionStatus.Rejected,
                 _ => TransactionExecutionStatus.Unspecified
             },
             Error = error ?? string.Empty,

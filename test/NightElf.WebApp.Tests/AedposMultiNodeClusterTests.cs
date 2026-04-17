@@ -9,6 +9,7 @@ using NightElf.Kernel.Core;
 using NightElf.Kernel.Core.Protobuf;
 using NightElf.Launcher;
 using NightElf.WebApp.Protobuf;
+using ApiTransactionResult = NightElf.WebApp.Protobuf.TransactionResult;
 
 namespace NightElf.WebApp.Tests;
 
@@ -130,7 +131,7 @@ public sealed class AedposMultiNodeClusterTests
             .ToArray();
 
         var stopwatch = Stopwatch.StartNew();
-        var submitResults = new List<TransactionResult>(transactionCount);
+        var submitResults = new List<ApiTransactionResult>(transactionCount);
         foreach (var envelope in envelopes)
         {
             submitResults.Add(await client.SubmitTransactionAsync(envelope.Transaction).ResponseAsync);
@@ -159,7 +160,7 @@ public sealed class AedposMultiNodeClusterTests
     private static async Task<Hash> ResolveSessionIdAsync(
         NightElfNodeTestHarness harness,
         Address senderAddress,
-        TransactionResult minedResult)
+        ApiTransactionResult minedResult)
     {
         var block = await harness.WaitForBlockByHeightAsync(minedResult.BlockHeight);
         var transactionIndex = block.Body.TransactionIds
@@ -269,7 +270,7 @@ public sealed class AedposMultiNodeClusterTests
             await Task.WhenAll(Nodes.Select(node => node.Harness.WaitForChainHeightAsync(minimumHeight))).ConfigureAwait(false);
         }
 
-        public async Task<IReadOnlyList<TransactionResult>> WaitForTransactionStatusOnAllNodesAsync(
+        public async Task<IReadOnlyList<ApiTransactionResult>> WaitForTransactionStatusOnAllNodesAsync(
             Hash transactionId,
             TransactionExecutionStatus expectedStatus,
             TimeSpan? timeout = null)

@@ -3,6 +3,7 @@ using Google.Protobuf.WellKnownTypes;
 
 using NightElf.Kernel.Core;
 using NightElf.Kernel.Core.Protobuf;
+using ProtoTransactionResultStatus = NightElf.Kernel.Core.Protobuf.TransactionResultStatus;
 
 namespace NightElf.Kernel.Core.Tests;
 
@@ -94,6 +95,30 @@ public sealed class KernelCoreProtobufCompatibilityTests
         Assert.False(roundTrip.MerklePathNodes[1].IsLeftChildNode);
         Assert.Equal("0A0B", roundTrip.MerklePathNodes[0].Hash.ToHex());
         Assert.Equal("0C0D", roundTrip.MerklePathNodes[1].Hash.ToHex());
+    }
+
+    [Fact]
+    public void TransactionResult_Should_RoundTrip_With_Phase1_Core_Shape()
+    {
+        var transactionResult = new TransactionResult
+        {
+            TransactionId = CreateHash(0xAA, 0xBB),
+            Status = ProtoTransactionResultStatus.Mined,
+            Bloom = ByteString.CopyFrom([0x01, 0x02]),
+            ReturnValue = ByteString.CopyFromUtf8("ok"),
+            BlockNumber = 42,
+            BlockHash = CreateHash(0xCC, 0xDD),
+            Error = string.Empty
+        };
+
+        var payload = transactionResult.ToByteArray();
+        var roundTrip = TransactionResult.Parser.ParseFrom(payload);
+
+        Assert.Equal(ProtoTransactionResultStatus.Mined, roundTrip.Status);
+        Assert.Equal("AABB", roundTrip.TransactionId.ToHex());
+        Assert.Equal("CCDD", roundTrip.BlockHash.ToHex());
+        Assert.Equal(42, roundTrip.BlockNumber);
+        Assert.Equal("ok", roundTrip.ReturnValue.ToStringUtf8());
     }
 
     [Fact]

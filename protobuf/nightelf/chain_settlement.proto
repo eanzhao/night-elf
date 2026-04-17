@@ -5,6 +5,7 @@ package nightelf.settlement;
 option csharp_namespace = "NightElf.WebApp.Protobuf";
 
 import "aelf/core.proto";
+import "aelf/transaction.proto";
 import "nightelf/webapi.proto";
 import "google/protobuf/timestamp.proto";
 

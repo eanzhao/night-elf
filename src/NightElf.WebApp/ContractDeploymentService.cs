@@ -11,6 +11,7 @@ using NightElf.Kernel.Core.Protobuf;
 using NightElf.Runtime.CSharp;
 using NightElf.Sdk.CSharp;
 using NightElf.WebApp.Protobuf;
+using ChainTransactionResultStatus = NightElf.Kernel.Core.TransactionResultStatus;
 
 namespace NightElf.WebApp;
 
@@ -185,12 +186,12 @@ public sealed class ContractDeploymentService
 
         await _chainStateStore.ApplyChangesAsync(bestChain, writes, cancellationToken: cancellationToken).ConfigureAwait(false);
         await _transactionResultStore
-            .RecordBlockResultAsync(transactionId, bestChain, TransactionResultStatus.Mined, cancellationToken: cancellationToken)
+            .RecordBlockResultAsync(transactionId, bestChain, ChainTransactionResultStatus.Mined, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
         var resultPayload = TransactionResultProtoConverter.Create(
             transactionId,
-            TransactionResultStatus.Mined,
+            ChainTransactionResultStatus.Mined,
             block: bestChain);
         await _eventBus.PublishAsync(
                 new ChainSettlementEventEnvelope(

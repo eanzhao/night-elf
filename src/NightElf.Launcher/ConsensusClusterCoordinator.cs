@@ -12,6 +12,8 @@ using NightElf.Kernel.Core.Protobuf;
 using NightElf.OS.Network;
 using NightElf.WebApp;
 using NightElf.WebApp.Protobuf;
+using ApiTransactionResult = NightElf.WebApp.Protobuf.TransactionResult;
+using ChainTransactionResultStatus = NightElf.Kernel.Core.TransactionResultStatus;
 
 namespace NightElf.Launcher;
 
@@ -584,7 +586,7 @@ public sealed class ConsensusClusterCoordinator : INetworkMessageSink
         IReadOnlyDictionary<string, byte[]> executionWrites,
         CancellationToken cancellationToken)
     {
-        if (outcome.Status != TransactionResultStatus.Mined ||
+        if (outcome.Status != ChainTransactionResultStatus.Mined ||
             !string.Equals(outcome.Transaction.MethodName, "RecordStep", StringComparison.Ordinal))
         {
             return;
@@ -766,7 +768,7 @@ public sealed class ConsensusClusterCoordinator : INetworkMessageSink
     }
 
     private Task PublishTransactionEventAsync(
-        TransactionResult result,
+        ApiTransactionResult result,
         CancellationToken cancellationToken)
     {
         return _eventBus.PublishAsync(

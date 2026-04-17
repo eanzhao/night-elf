@@ -7,6 +7,7 @@ using NightElf.Database;
 using NightElf.Kernel.Core;
 using NightElf.Kernel.Core.Protobuf;
 using NightElf.WebApp.Protobuf;
+using ApiTransactionResult = NightElf.WebApp.Protobuf.TransactionResult;
 
 namespace NightElf.WebApp;
 
@@ -29,7 +30,7 @@ public sealed class ChainSettlementService : ChainSettlement.ChainSettlementBase
         _eventBroker = eventBroker ?? throw new ArgumentNullException(nameof(eventBroker));
     }
 
-    public override Task<TransactionResult> SubmitTransaction(
+    public override Task<ApiTransactionResult> SubmitTransaction(
         Transaction request,
         ServerCallContext context)
     {

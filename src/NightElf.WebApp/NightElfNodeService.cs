@@ -4,6 +4,7 @@ using Grpc.Core;
 using NightElf.Kernel.Core;
 using NightElf.Kernel.Core.Protobuf;
 using NightElf.WebApp.Protobuf;
+using ApiTransactionResult = NightElf.WebApp.Protobuf.TransactionResult;
 
 namespace NightElf.WebApp;
 
@@ -23,7 +24,7 @@ public sealed class NightElfNodeService : NightElfNode.NightElfNodeBase
         _chainStateStore = chainStateStore ?? throw new ArgumentNullException(nameof(chainStateStore));
     }
 
-    public override async Task<TransactionResult> SubmitTransaction(
+    public override async Task<ApiTransactionResult> SubmitTransaction(
         Transaction request,
         ServerCallContext context)
     {
@@ -31,7 +32,7 @@ public sealed class NightElfNodeService : NightElfNode.NightElfNodeBase
         return await _transactionSubmissionService.SubmitAsync(request, context.CancellationToken).ConfigureAwait(false);
     }
 
-    public override async Task<TransactionResult> GetTransactionResult(
+    public override async Task<ApiTransactionResult> GetTransactionResult(
         Hash request,
         ServerCallContext context)
     {
